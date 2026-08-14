@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Connexion — Gestion Financière Scolaire</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+<link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body class="login-bg flex items-center justify-center p-4">
+  <div id="toast-container"></div>
+
+  <div class="w-full max-w-md">
+    <div class="text-center mb-8 text-white">
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/10 mb-4">
+        <i class="fas fa-school text-3xl"></i>
+      </div>
+      <h1 class="text-2xl font-bold">Gestion Financière Scolaire</h1>
+      <p class="text-blue-100 text-sm mt-1">Prévision · Livre de caisse · Perception · Rapports</p>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-2xl p-8">
+      <h2 id="form-title" class="text-lg font-bold text-slate-800 mb-1">Connexion</h2>
+      <p id="form-subtitle" class="text-sm text-slate-500 mb-6">Accédez à votre espace de gestion</p>
+
+      <form id="login-form" class="space-y-4">
+        <div>
+          <label class="text-sm font-medium text-slate-700">Adresse email</label>
+          <input type="email" id="login-email" required class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="vous@ecole.cd">
+        </div>
+        <div>
+          <label class="text-sm font-medium text-slate-700">Mot de passe</label>
+          <input type="password" id="login-password" required class="w-full mt-1 px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="••••••••">
+        </div>
+        <button type="submit" id="login-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition text-sm">
+          <i class="fas fa-sign-in-alt mr-2"></i>Se connecter
+        </button>
+      </form>
+
+      <div id="bootstrap-box" class="hidden mt-6 pt-6 border-t border-slate-200">
+        <p class="text-xs text-slate-500 mb-3">Aucun super administrateur n'existe encore. Créez le premier compte pour initialiser la plateforme :</p>
+        <form id="bootstrap-form" class="space-y-3">
+          <input type="text" id="boot-name" required placeholder="Nom complet" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-500">
+          <input type="email" id="boot-email" required placeholder="Email" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-500">
+          <input type="password" id="boot-password" required placeholder="Mot de passe" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-500">
+          <button type="submit" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2.5 rounded-lg transition text-sm">
+            <i class="fas fa-user-shield mr-2"></i>Créer le Super Administrateur
+          </button>
+        </form>
+      </div>
+    </div>
+    <p class="text-center text-blue-100 text-xs mt-6">© 2026 Plateforme de Gestion Financière Scolaire</p>
+  </div>
+
+<script src="/static/js/api.js"></script>
+<script>
+async function checkBootstrap() {
+  try {
+    const { bootstrapped } = await Api.get('/api/bootstrap/status')
+    if (!bootstrapped) {
+      document.getElementById('bootstrap-box').classList.remove('hidden')
+      document.getElementById('form-subtitle').textContent = 'Connectez-vous ou initialisez la plateforme ci-dessous'
+    }
+  } catch (e) { /* ignore */ }
+}
+checkBootstrap()
+
+// Si déjà connecté, rediriger directement
+Api.get('/api/auth/me').then(d => redirectByRole(d.user.role)).catch(() => {})
+
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault()
+  const btn = document.getElementById('login-btn')
+  btn.disabled = true
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Connexion...'
+  try {
+    const email = document.getElementById('login-email').value.trim()
+    const password = document.getElementById('login-password').value
+    const data = await Api.post('/api/auth/login', { email, password })
+    toast('Connexion réussie', 'success')
+    setTimeout(() => redirectByRole(data.user.role), 300)
+  } catch (err) {
+    toast(err.message, 'error')
+    btn.disabled = false
+    btn.innerHTML = '<i class="fas fa-sign-in-alt mr-2"></i>Se connecter'
+  }
+})
+
+document.getElementById('bootstrap-form').addEventListener('submit', async (e) => {
+  e.preventDefault()
+  try {
+    const name = document.getElementById('boot-name').value.trim()
+    const email = document.getElementById('boot-email').value.trim()
+    const password = document.getElementById('boot-password').value
+    await Api.post('/api/bootstrap', { name, email, password })
+    toast('Super administrateur créé ! Vous pouvez vous connecter.', 'success')
+    document.getElementById('bootstrap-box').classList.add('hidden')
+    document.getElementById('login-email').value = email
+  } catch (err) {
+    toast(err.message, 'error')
+  }
+})
+</script>
+</body>
+</html>

@@ -1,0 +1,127 @@
+/* ============================================================================
+   Styles complémentaires à Tailwind (CDN) - Plateforme Gestion Financière Scolaire
+   ============================================================================ */
+
+:root {
+  --brand-blue: #1e40af;
+  --brand-blue-dark: #1e3a8a;
+  --brand-gold: #b45309;
+}
+
+body {
+  font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
+  background: #f1f5f9;
+}
+
+/* Scrollbar discret */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Sidebar navigation */
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.6rem 1rem;
+  border-radius: 0.5rem;
+  color: #cbd5e1;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.nav-link:hover { background: rgba(255,255,255,0.08); color: #fff; }
+.nav-link.active { background: #2563eb; color: #fff; }
+
+/* Cards */
+.stat-card {
+  background: #fff;
+  border-radius: 0.85rem;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  border: 1px solid #e2e8f0;
+}
+
+.section-card {
+  background: #fff;
+  border-radius: 0.85rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  border: 1px solid #e2e8f0;
+}
+
+/* Table */
+table.data-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+table.data-table thead th {
+  background: #f8fafc;
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  border-bottom: 2px solid #e2e8f0;
+  white-space: nowrap;
+}
+table.data-table tbody td {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+}
+table.data-table tbody tr:hover { background: #f8fafc; }
+table.data-table tfoot td {
+  padding: 0.6rem 0.75rem;
+  font-weight: 700;
+  border-top: 2px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+/* Badges */
+.badge { display:inline-flex; align-items:center; padding:0.15rem 0.6rem; border-radius:999px; font-size:0.72rem; font-weight:600; }
+.badge-green { background:#dcfce7; color:#166534; }
+.badge-red { background:#fee2e2; color:#991b1b; }
+.badge-blue { background:#dbeafe; color:#1e40af; }
+.badge-gray { background:#f1f5f9; color:#475569; }
+.badge-amber { background:#fef3c7; color:#92400e; }
+
+/* Modal */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(15,23,42,0.55);
+  display:flex; align-items:center; justify-content:center; z-index: 100; padding:1rem;
+}
+.modal-box { background:#fff; border-radius:0.85rem; max-width: 560px; width:100%; max-height:90vh; overflow-y:auto; }
+
+/* Toast */
+#toast-container { position: fixed; top: 1rem; right: 1rem; z-index: 200; display:flex; flex-direction:column; gap:0.5rem; }
+.toast {
+  padding: 0.75rem 1.1rem; border-radius: 0.6rem; color:#fff; font-size:0.875rem; font-weight:500;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-width: 260px; animation: slideIn 0.2s ease;
+}
+.toast-success { background:#16a34a; }
+.toast-error { background:#dc2626; }
+.toast-info { background:#2563eb; }
+@keyframes slideIn { from { transform: translateX(30px); opacity:0; } to { transform: translateX(0); opacity:1; } }
+
+/* Login */
+.login-bg {
+  background: linear-gradient(135deg, var(--brand-blue-dark), var(--brand-blue) 60%, #2563eb);
+  min-height: 100vh;
+}
+
+/* Print receipt styles */
+@media print {
+  body { background: #fff !important; }
+  .no-print { display: none !important; }
+  .receipt-print-area { box-shadow: none !important; border: none !important; }
+}
+
+.tab-btn {
+  padding: 0.55rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; font-weight: 600; color:#64748b; cursor:pointer;
+}
+.tab-btn.active { background:#2563eb; color:#fff; }
+.tab-btn:hover:not(.active) { background:#e2e8f0; }
+
+.loader {
+  border: 3px solid #e2e8f0; border-top: 3px solid #2563eb; border-radius: 50%;
+  width: 28px; height: 28px; animation: spin 0.7s linear infinite; margin: 2rem auto;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
