@@ -78,6 +78,7 @@
         <div><h1 class="text-2xl font-bold text-slate-800">Élèves</h1><p class="text-slate-500 text-sm">Liste des élèves par classe</p></div>
         <div class="flex gap-2">
           <select id="students-class-filter" class="px-3 py-2 border rounded-lg text-sm"></select>
+          <button onclick="showImportStudentsModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold"><i class="fas fa-file-import mr-2"></i>Importer (Excel/CSV)</button>
           <button onclick="showCreateStudentModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold"><i class="fas fa-plus mr-2"></i>Ajouter un élève</button>
         </div>
       </div>
@@ -195,6 +196,7 @@
   </main>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="/static/js/api.js"></script>
 <script src="/static/js/admin.js"></script>
 </body>

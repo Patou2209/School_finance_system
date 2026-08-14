@@ -442,6 +442,138 @@ function showCreateStudentModal() {
   })
 }
 
+// ---------------------------------------------------------------------------
+// IMPORT ÉLÈVES (Excel / CSV) — une seule colonne "Nom et post-nom"
+// ---------------------------------------------------------------------------
+let importedStudentsRows = []
+
+function splitNomPostNom(fullName) {
+  const clean = String(fullName || '').trim().replace(/\s+/g, ' ')
+  if (!clean) return { nom: '', post_nom: '' }
+  const parts = clean.split(' ')
+  const nom = parts[0]
+  const post_nom = parts.slice(1).join(' ') || parts[0]
+  return { nom, post_nom }
+}
+
+function showImportStudentsModal() {
+  importedStudentsRows = []
+  openModal(`
+    <div class="p-6">
+      <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fas fa-file-import mr-2 text-emerald-600"></i>Importer des élèves</h3>
+      <p class="text-xs text-slate-500 mb-4">Fichier Excel (.xlsx/.xls) ou CSV attendu, avec une seule colonne contenant le <strong>Nom et post-nom</strong> de chaque élève (une ligne par élève). La première cellule peut être un en-tête (ex. "Nom et post-nom"), elle sera ignorée automatiquement.</p>
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs font-medium text-slate-600">Classe de destination *</label>
+          <select required id="import-class" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">${classesCache.map(cl => `<option value="${cl.id}">${escapeHtml(cl.name)}</option>`).join('')}</select>
+        </div>
+        <div>
+          <label class="text-xs font-medium text-slate-600">Fichier (.xlsx, .xls, .csv)</label>
+          <input type="file" id="import-file" accept=".xlsx,.xls,.csv" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm bg-white">
+        </div>
+        <div id="import-preview" class="max-h-64 overflow-y-auto border rounded-lg hidden">
+          <table class="data-table"><thead><tr><th>#</th><th>Nom et post-nom (fichier)</th><th>Nom</th><th>Post-nom</th></tr></thead><tbody id="import-preview-tbody"></tbody></table>
+        </div>
+        <div id="import-count" class="text-xs text-slate-500"></div>
+      </div>
+      <div class="flex justify-end gap-2 pt-4 mt-2 border-t">
+        <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100">Annuler</button>
+        <button type="button" id="import-submit-btn" disabled onclick="submitImportedStudents()" class="px-4 py-2 text-sm rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold">
+          <i class="fas fa-upload mr-2"></i>Importer
+        </button>
+      </div>
+    </div>`)
+
+  document.getElementById('import-file').addEventListener('change', handleImportFileSelected)
+}
+
+function handleImportFileSelected(e) {
+  const file = e.target.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (evt) => {
+    try {
+      const data = new Uint8Array(evt.target.result)
+      const workbook = XLSX.read(data, { type: 'array' })
+      const firstSheetName = workbook.SheetNames[0]
+      const sheet = workbook.Sheets[firstSheetName]
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: '' })
+
+      // Extraire la première colonne de chaque ligne, ignorer les cellules vides
+      let names = rows
+        .map(r => (Array.isArray(r) ? r[0] : r))
+        .map(v => String(v ?? '').trim())
+        .filter(v => v.length > 0)
+
+      // Ignorer une éventuelle ligne d'en-tête ("nom", "nom et post-nom", etc.)
+      if (names.length > 0) {
+        const headerCandidate = names[0].toLowerCase()
+        if (/^(nom|nom et post[- ]?nom|post[- ]?nom|noms)$/i.test(headerCandidate)) {
+          names = names.slice(1)
+        }
+      }
+
+      importedStudentsRows = names.map(n => ({ full: n, ...splitNomPostNom(n) }))
+      renderImportPreview()
+    } catch (err) {
+      toast('Fichier illisible : ' + err.message, 'error')
+    }
+  }
+  reader.readAsArrayBuffer(file)
+}
+
+function renderImportPreview() {
+  const preview = document.getElementById('import-preview')
+  const tbody = document.getElementById('import-preview-tbody')
+  const countEl = document.getElementById('import-count')
+  const btn = document.getElementById('import-submit-btn')
+
+  if (importedStudentsRows.length === 0) {
+    preview.classList.add('hidden')
+    countEl.textContent = 'Aucun élève détecté dans le fichier.'
+    btn.disabled = true
+    return
+  }
+
+  tbody.innerHTML = importedStudentsRows.map((r, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${escapeHtml(r.full)}</td>
+      <td class="font-medium">${escapeHtml(r.nom)}</td>
+      <td>${escapeHtml(r.post_nom)}</td>
+    </tr>`).join('')
+  preview.classList.remove('hidden')
+  countEl.textContent = `${importedStudentsRows.length} élève(s) détecté(s), prêt(s) à être importés.`
+  btn.disabled = false
+}
+
+async function submitImportedStudents() {
+  const classId = document.getElementById('import-class').value
+  if (!classId) { toast('Veuillez choisir une classe', 'error'); return }
+  if (importedStudentsRows.length === 0) { toast('Aucun élève à importer', 'error'); return }
+
+  const students = importedStudentsRows.map(r => ({
+    nom: r.nom,
+    post_nom: r.post_nom,
+    class_id: classId
+  }))
+
+  const btn = document.getElementById('import-submit-btn')
+  btn.disabled = true
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Import en cours...'
+  try {
+    const res = await Api.post('/api/admin/students/bulk', { students })
+    toast(`${res.created} élève(s) importé(s) avec succès`, 'success')
+    closeModal()
+    await loadStudents()
+    await loadClasses()
+  } catch (err) {
+    toast(err.message, 'error')
+    btn.disabled = false
+    btn.innerHTML = '<i class="fas fa-upload mr-2"></i>Importer'
+  }
+}
+
 async function deleteStudent(id) {
   if (!confirm('Supprimer cet élève ?')) return
   try {

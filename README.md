@@ -108,7 +108,7 @@ Tables principales (voir `migrations/0001_initial_schema.sql`) :
    - Vérifie/ajuste l'**année scolaire** courante (3 trimestres créés automatiquement) ;
    - Crée les **classes** (un compte de connexion classe email+mot de passe est généré automatiquement et affiché une seule fois — à noter/communiquer immédiatement) ;
    - Crée le **personnel** (enseignants, percepteurs) avec leurs identifiants (email + mot de passe choisis par l'admin) puis **affecte** chacun à une ou plusieurs classes (chaque classe doit avoir ≥1 percepteur pour pouvoir percevoir) — c'est avec ces identifiants que le percepteur se connectera pour percevoir dans la classe qui lui est assignée ;
-   - Inscrit les **élèves** dans leurs classes ;
+   - Inscrit les **élèves** dans leurs classes, un par un ou en masse via le bouton **"Importer (Excel/CSV)"** (onglet Élèves) — le fichier doit contenir une seule colonne "Nom et post-nom" (une ligne = un élève), le nom et le post-nom sont séparés automatiquement (1er mot = nom, reste = post-nom) ;
    - Fixe les **frais scolaires** par classe × trimestre ;
    - (optionnel) définit les **prévisions budgétaires** par catégorie.
 4. **Percepteur** se connecte à son espace dédié (avec les identifiants créés par l'admin) → sélectionne sa classe, le trimestre, le jour → le **registre journalier** liste tous les élèves de la classe → clique "Percevoir" pour un élève → saisit le montant → le **reçu s'imprime automatiquement** (nom école, classe, trimestre, élève, montant payé, dette restante, date, signature/sceau) → la ligne "Frais scolaire" du **livre de caisse** se met à jour automatiquement.
@@ -123,7 +123,7 @@ Tables principales (voir `migrations/0001_initial_schema.sql`) :
 - CRUD classes (avec génération automatique d'un compte de connexion classe email+mot de passe), personnel (enseignants/percepteurs avec identifiants), affectations N-N
 - Espace **Classe** dédié en lecture seule (`/static/classe.html`) : élèves, registre du jour, dettes, frais fixés
 - Vue **Admin** "Voir" une classe : détail complet (élèves, frais, affectations, identifiants, derniers paiements) + régénération du mot de passe de la classe
-- CRUD élèves, import unitaire
+- CRUD élèves, import unitaire **et import en masse** (Excel/CSV, une seule colonne "Nom et post-nom" — parsing côté client via SheetJS, puis répartition automatique en `nom` / `post_nom`)
 - Fixation des frais par classe × trimestre
 - Registre de perception journalière + paiement + génération de reçu imprimable
 - Listes de dettes par classe/trimestre
@@ -133,7 +133,6 @@ Tables principales (voir `migrations/0001_initial_schema.sql`) :
 
 ### ⏳ Non implémenté / pistes d'amélioration
 - Espace **Enseignant** : actuellement une coquille d'information ; il manque une route API dédiée listant les classes/élèves de l'enseignant connecté (facile à ajouter : réutiliser le modèle de `/api/perception/my-classes` avec `class_teachers`).
-- Import CSV/Excel en masse des élèves (l'API `POST /api/admin/students/bulk` existe déjà côté backend mais n'a pas d'interface graphique).
 - Pas de gestion de mot de passe oublié (email) — actuellement seul un changement de mot de passe connecté est possible.
 - Pas d'export PDF/Excel des rapports (actuellement impression navigateur uniquement).
 - Pas de graphiques (Chart.js) sur les rapports — actuellement uniquement des tableaux.
