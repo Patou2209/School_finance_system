@@ -262,8 +262,8 @@ async function viewClassDetail(classId) {
 
         <div class="mb-5">
           <p class="text-xs font-semibold text-slate-500 mb-2">Élèves (${data.students.length})</p>
-          <table class="data-table"><thead><tr><th>Nom</th><th>Post-nom</th><th>Matricule</th></tr></thead>
-            <tbody>${data.students.map(s => `<tr><td class="font-medium">${escapeHtml(s.nom)}</td><td>${escapeHtml(s.post_nom)}</td><td>${escapeHtml(s.matricule || '—')}</td></tr>`).join('') || '<tr><td colspan="3" class="text-center text-slate-400 py-3">Aucun élève</td></tr>'}</tbody>
+          <table class="data-table"><thead><tr><th>Nom</th><th>Post-nom</th></tr></thead>
+            <tbody>${data.students.map(s => `<tr><td class="font-medium">${escapeHtml(s.nom)}</td><td>${escapeHtml(s.post_nom)}</td></tr>`).join('') || '<tr><td colspan="2" class="text-center text-slate-400 py-3">Aucun élève</td></tr>'}</tbody>
           </table>
         </div>
 

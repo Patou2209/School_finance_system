@@ -124,17 +124,18 @@ Tables principales (voir `migrations/0001_initial_schema.sql`) :
 
 ## 6. Workflow d'utilisation
 1. **Premier lancement** : ouvrir `/static/index.html` → le formulaire "Bootstrap" apparaît car aucun super admin n'existe → créer le super admin.
-2. **Super admin** se connecte → crée une **école** (nom, code unique, année scolaire) → un **compte admin** est créé automatiquement pour cette école.
+2. **Super admin** se connecte → crée une **école** (nom, code unique, année scolaire au format "AAAA-AAAA") → un **compte admin** est créé automatiquement pour cette école.
 3. **Admin école** se connecte → :
-   - Vérifie/ajuste l'**année scolaire** courante (3 trimestres créés automatiquement) ;
-   - Crée les **classes** (un compte de connexion classe email+mot de passe est généré automatiquement et affiché une seule fois — à noter/communiquer immédiatement) ;
-   - Crée le **personnel** (enseignants, percepteurs) avec leurs identifiants (email + mot de passe choisis par l'admin) puis **affecte** chacun à une ou plusieurs classes (chaque classe doit avoir ≥1 percepteur pour pouvoir percevoir) — c'est avec ces identifiants que le percepteur se connectera pour percevoir dans la classe qui lui est assignée ;
-   - Inscrit les **élèves** dans leurs classes, un par un ou en masse via le bouton **"Importer (Excel/CSV)"** (onglet Élèves) — le fichier doit contenir une seule colonne "Nom et post-nom" (une ligne = un élève), le nom et le post-nom sont séparés automatiquement (1er mot = nom, reste = post-nom) ;
+   - Déclare/ajuste l'**année scolaire courante** au format RDC "AAAA-AAAA" (deux années consécutives, ex: 2025-2026 — validé côté serveur), appliquée à tous les documents (3 trimestres créés automatiquement) ;
+   - Crée les **classes** : niveau via dropdown (CTEB / Humanitaire / Primaire), nom via dropdown ordinal (1ère…6ème) + étiquette libre (ex "A" → "2ème A"), et **saisit lui-même l'email et le mot de passe de connexion de la classe** (plus d'auto-génération) — modifiables ensuite via le bouton "Identifiants" ;
+   - Crée le **personnel** (enseignants, percepteurs) avec leurs identifiants (email + mot de passe choisis par l'admin) puis **affecte** chacun à une ou plusieurs classes (chaque classe doit avoir ≥1 percepteur pour pouvoir percevoir) ;
+   - Consulte la liste des **élèves** par classe (colonnes Nom/Post-nom/Prénom/Sexe uniquement) — l'ajout et l'import Excel/CSV se font désormais **depuis l'espace de connexion de chaque classe**, pas depuis l'admin ;
    - Fixe les **frais scolaires** par classe × trimestre ;
+   - Peut à tout moment **ouvrir une classe** (bouton "Ouvrir") pour agir avec les droits complets de cette classe (impersonation), avec un bandeau permettant de revenir à l'administration en un clic ;
    - (optionnel) définit les **prévisions budgétaires** par catégorie.
-4. **Percepteur** se connecte à son espace dédié (avec les identifiants créés par l'admin) → sélectionne sa classe, le trimestre, le jour → le **registre journalier** liste tous les élèves de la classe → clique "Percevoir" pour un élève → saisit le montant → le **reçu s'imprime automatiquement** (nom école, classe, trimestre, élève, montant payé, dette restante, date, signature/sceau) → la ligne "Frais scolaire" du **livre de caisse** se met à jour automatiquement.
-5. **Classe** (compte auto-généré à la création par l'admin) se connecte à son espace en lecture seule (`/static/classe.html`) → consulte ses élèves, le registre de perception du jour, ses dettes et ses frais fixés — aucune saisie possible depuis cet espace.
-6. **Admin** consulte à tout moment : **listes de dettes**, **livre de caisse** (avec solde cumulé, saisie des dépenses/bons/factures), **budget prévu vs réalisé**, le **rapport financier** par trimestre (recouvrement, dépenses, débiteurs), et peut à tout moment **ouvrir n'importe quelle classe** (bouton "Voir") pour consulter tout son contenu ou **régénérer le mot de passe** de son compte de connexion (bouton "Mdp").
+4. **Classe** se connecte avec les identifiants définis par l'admin (`/static/classe.html`) → **ajoute ses élèves un par un ou en masse via "Importer (Excel/CSV)"** (une seule colonne "Nom et post-nom", séparation automatique nom/post-nom) → consulte le registre de perception du jour, ses dettes, ses frais fixés → peut **imprimer tous les reçus du jour** de sa classe.
+5. **Percepteur** se connecte à son espace dédié → sélectionne sa classe, le trimestre, le jour → le **registre journalier** liste tous les élèves (agrégeant tous les versements du jour par élève, avec badge "xN" si plusieurs paiements) → clique "Percevoir" (**toujours disponible**, même après un premier paiement du jour, pour gérer les paiements multiples) → saisit le montant → le **reçu s'imprime automatiquement** → peut aussi **imprimer tous les reçus du jour** pour toute sa classe en un clic → la ligne "Frais scolaire" du **livre de caisse** se met à jour automatiquement.
+6. **Admin** consulte à tout moment : **listes de dettes**, **livre de caisse** (avec solde cumulé, saisie des dépenses/bons/factures), **budget prévu vs réalisé**, le **rapport financier** par trimestre (recouvrement, dépenses, débiteurs), et peut **ouvrir n'importe quelle classe** (accès complet identique à un login classe) ou **modifier ses identifiants de connexion** (bouton "Identifiants").
 
 ## 7. État d'avancement
 ### ✅ Fonctionnalités complètes et testées (API + interface)
@@ -160,6 +161,7 @@ Tables principales (voir `migrations/0001_initial_schema.sql`) :
 - Pas d'export PDF/Excel des rapports (actuellement impression navigateur uniquement).
 - Pas de graphiques (Chart.js) sur les rapports — actuellement uniquement des tableaux.
 - Le solde initial du livre de caisse (report d'exercice précédent) doit être saisi manuellement comme première ligne (recette) ; pas de champ dédié "solde d'ouverture" par année scolaire.
+- Le niveau (CTEB/Humanitaire/Primaire) et le nom composé de classe restent stockés en simple colonnes `TEXT` (validation applicative uniquement, pas de contrainte SQL `CHECK`).
 
 ## 8. Développement local
 ```bash
