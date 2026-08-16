@@ -9,8 +9,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "webapp-production",
-      "database_id": "local-placeholder-will-be-set-on-deploy"
+      "database_name": "scoloane_finance",
+      "database_id": "31087bf1-0b8b-4ea7-9938-b6563a231efc"
     }
   ]
 }
