@@ -15,6 +15,15 @@ export type JwtPayload = {
   name: string
   email: string
   exp: number
+  // Présent uniquement lorsque ce jeton a été émis par "impersonation" :
+  // un admin a ouvert une classe et agit avec les droits du rôle 'classe',
+  // tout en gardant une référence signée vers son propre compte admin pour
+  // pouvoir revenir à son espace d'administration.
+  impersonating?: {
+    admin_uid: number
+    admin_name: string
+    admin_email: string
+  } | null
 }
 
 export type AppEnv = {

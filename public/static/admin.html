@@ -75,15 +75,13 @@
     <!-- STUDENTS -->
     <section id="tab-students" class="hidden">
       <div class="flex items-center justify-between mb-6">
-        <div><h1 class="text-2xl font-bold text-slate-800">Élèves</h1><p class="text-slate-500 text-sm">Liste des élèves par classe</p></div>
+        <div><h1 class="text-2xl font-bold text-slate-800">Élèves</h1><p class="text-slate-500 text-sm">Liste des élèves par classe (l'ajout et l'import se font depuis l'espace de connexion de chaque classe)</p></div>
         <div class="flex gap-2">
           <select id="students-class-filter" class="px-3 py-2 border rounded-lg text-sm"></select>
-          <button onclick="showImportStudentsModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold"><i class="fas fa-file-import mr-2"></i>Importer (Excel/CSV)</button>
-          <button onclick="showCreateStudentModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold"><i class="fas fa-plus mr-2"></i>Ajouter un élève</button>
         </div>
       </div>
       <div class="section-card overflow-x-auto">
-        <table class="data-table"><thead><tr><th>Matricule</th><th>Nom</th><th>Post-nom</th><th>Prénom</th><th>Sexe</th><th>Classe</th><th>Actions</th></tr></thead><tbody id="students-tbody"></tbody></table>
+        <table class="data-table"><thead><tr><th>Nom</th><th>Post-nom</th><th>Prénom</th><th>Sexe</th><th>Actions</th></tr></thead><tbody id="students-tbody"></tbody></table>
       </div>
     </section>
 
@@ -115,6 +113,7 @@
           <div><label class="text-xs font-medium text-slate-600 block mb-1">Trimestre</label><select id="perc-trimester" class="px-3 py-2 border rounded-lg text-sm w-44"></select></div>
           <div><label class="text-xs font-medium text-slate-600 block mb-1">Jour</label><input type="date" id="perc-date" class="px-3 py-2 border rounded-lg text-sm"></div>
           <button onclick="loadRegistre()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-search mr-2"></i>Afficher</button>
+          <button onclick="printAllReceipts()" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-print mr-2"></i>Imprimer tous les reçus du jour</button>
         </div>
       </div>
       <div id="registre-summary" class="grid grid-cols-3 gap-4 mb-4"></div>
@@ -196,7 +195,6 @@
   </main>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="/static/js/api.js"></script>
 <script src="/static/js/admin.js"></script>
 </body>

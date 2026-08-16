@@ -68,6 +68,48 @@ auth.post('/logout', (c) => {
   return c.json({ success: true })
 })
 
+// POST /api/auth/restore-admin - depuis une session d'impersonation (admin ayant
+// "ouvert" une classe), revient à la session admin d'origine sans nouveau login.
+auth.post('/restore-admin', requireAuth, async (c) => {
+  const user = c.get('user')
+  if (!user.impersonating) {
+    return c.json({ error: "Cette session n'est pas une session d'impersonation" }, 400)
+  }
+  const adminAccount = await c.env.DB.prepare(
+    `SELECT u.*, s.name as school_name FROM users u LEFT JOIN schools s ON s.id = u.school_id WHERE u.id = ?`
+  )
+    .bind(user.impersonating.admin_uid)
+    .first<any>()
+  if (!adminAccount || !adminAccount.active || adminAccount.role !== 'admin') {
+    return c.json({ error: 'Compte administrateur introuvable ou inactif' }, 404)
+  }
+
+  const payload = {
+    uid: adminAccount.id,
+    role: adminAccount.role,
+    school_id: adminAccount.school_id,
+    class_id: adminAccount.class_id ?? null,
+    name: adminAccount.name,
+    email: adminAccount.email,
+    exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7
+  }
+  const token = await signJWT(payload, getSecret(c))
+  c.header('Set-Cookie', `token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 7}`)
+
+  return c.json({
+    success: true,
+    user: {
+      id: adminAccount.id,
+      role: adminAccount.role,
+      school_id: adminAccount.school_id,
+      class_id: adminAccount.class_id ?? null,
+      school_name: adminAccount.school_name,
+      name: adminAccount.name,
+      email: adminAccount.email
+    }
+  })
+})
+
 // GET /api/auth/me
 auth.get('/me', requireAuth, async (c) => {
   const user = c.get('user')

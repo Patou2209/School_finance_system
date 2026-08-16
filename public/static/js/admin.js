@@ -93,11 +93,16 @@ async function loadYears() {
 }
 
 function showCreateYearModal() {
+  const nextStart = new Date().getFullYear()
   openModal(`
     <div class="p-6">
       <h3 class="text-lg font-bold text-slate-800 mb-4"><i class="fas fa-calendar mr-2 text-blue-600"></i>Nouvelle année scolaire</h3>
       <form id="create-year-form" class="space-y-3">
-        <div><label class="text-xs font-medium text-slate-600">Libellé *</label><input required id="cy-label" placeholder="2026-2027" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+        <div>
+          <label class="text-xs font-medium text-slate-600">Année de début *</label>
+          <input required type="number" id="cy-start-year" value="${nextStart}" min="2000" max="2100" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
+          <p class="text-xs text-slate-400 mt-1">En RDC, une année scolaire couvre toujours deux années consécutives (ex : <span id="cy-preview" class="font-semibold">${nextStart}-${nextStart + 1}</span>)</p>
+        </div>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="text-xs font-medium text-slate-600">Début</label><input type="date" id="cy-start" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
           <div><label class="text-xs font-medium text-slate-600">Fin</label><input type="date" id="cy-end" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
@@ -109,16 +114,23 @@ function showCreateYearModal() {
         </div>
       </form>
     </div>`)
+  document.getElementById('cy-start-year').addEventListener('input', (e) => {
+    const y = parseInt(e.target.value, 10)
+    document.getElementById('cy-preview').textContent = isNaN(y) ? '—' : `${y}-${y + 1}`
+  })
   document.getElementById('create-year-form').addEventListener('submit', async (e) => {
     e.preventDefault()
     try {
+      const y = parseInt(document.getElementById('cy-start-year').value, 10)
+      if (isNaN(y)) { toast('Année de début invalide', 'error'); return }
+      const label = `${y}-${y + 1}`
       await Api.post('/api/admin/school-years', {
-        label: document.getElementById('cy-label').value,
+        label,
         start_date: document.getElementById('cy-start').value || null,
         end_date: document.getElementById('cy-end').value || null,
         set_current: document.getElementById('cy-current').checked
       })
-      toast('Année scolaire créée', 'success')
+      toast(`Année scolaire ${label} créée`, 'success')
       closeModal()
       await refreshCoreData()
       await loadYears()
@@ -155,12 +167,20 @@ async function loadClasses() {
           : '<span class="text-xs text-slate-400">—</span>'}
       </td>
       <td class="space-x-2 whitespace-nowrap">
+        <button onclick="openClassAsAdmin(${cl.id})" class="text-emerald-600 hover:underline text-xs font-semibold"><i class="fas fa-door-open"></i> Ouvrir</button>
         <button onclick="viewClassDetail(${cl.id})" class="text-slate-700 hover:underline text-xs font-semibold"><i class="fas fa-eye"></i> Voir</button>
         <button onclick="manageClassAssignments(${cl.id}, '${escapeHtml(cl.name)}')" class="text-blue-600 hover:underline text-xs font-semibold"><i class="fas fa-user-plus"></i> Affecter</button>
-        <button onclick="regenerateClassPassword(${cl.id}, '${escapeHtml(cl.name)}')" class="text-amber-600 hover:underline text-xs font-semibold"><i class="fas fa-key"></i> Mdp</button>
+        <button onclick="showClassLoginEditModal(${cl.id}, '${escapeHtml(cl.name)}', '${escapeHtml(cl.login_email || '')}')" class="text-amber-600 hover:underline text-xs font-semibold"><i class="fas fa-key"></i> Identifiants</button>
         <button onclick="deleteClass(${cl.id})" class="text-red-600 hover:underline text-xs font-semibold"><i class="fas fa-trash"></i></button>
       </td>
     </tr>`).join('') || '<tr><td colspan="7" class="text-center text-slate-400 py-6">Aucune classe créée</td></tr>'
+}
+
+async function openClassAsAdmin(classId) {
+  try {
+    await Api.post(`/api/admin/classes/${classId}/impersonate`)
+    window.location.href = '/static/classe.html'
+  } catch (err) { toast(err.message, 'error') }
 }
 
 function showClassLoginModal(className, email, password) {
@@ -178,12 +198,34 @@ function showClassLoginModal(className, email, password) {
     </div>`)
 }
 
-async function regenerateClassPassword(classId, className) {
-  if (!confirm(`Régénérer le mot de passe de connexion de la classe "${className}" ? L'ancien mot de passe cessera de fonctionner.`)) return
-  try {
-    const result = await Api.post(`/api/admin/classes/${classId}/regenerate-password`)
-    showClassLoginModal(className, result.class_login.email, result.class_login.password)
-  } catch (err) { toast(err.message, 'error') }
+function showClassLoginEditModal(classId, className, currentEmail) {
+  openModal(`
+    <div class="p-6">
+      <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fas fa-key mr-2 text-amber-600"></i>Identifiants de connexion — ${escapeHtml(className)}</h3>
+      <p class="text-sm text-slate-500 mb-4">Définissez ou modifiez l'email et le mot de passe de connexion de cette classe. Laissez le mot de passe vide pour ne changer que l'email.</p>
+      <form id="class-login-form" class="space-y-3">
+        <div><label class="text-xs font-medium text-slate-600">Email de connexion *</label><input required type="email" id="cl-email" value="${escapeHtml(currentEmail)}" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+        <div><label class="text-xs font-medium text-slate-600">Nouveau mot de passe ${currentEmail ? '(laisser vide pour ne pas changer)' : '*'}</label><input ${currentEmail ? '' : 'required'} id="cl-password" placeholder="Min. 4 caractères" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+        <div class="flex justify-end gap-2 pt-3">
+          <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100">Annuler</button>
+          <button type="submit" class="px-4 py-2 text-sm rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold">Enregistrer</button>
+        </div>
+      </form>
+    </div>`)
+  document.getElementById('class-login-form').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    try {
+      const email = document.getElementById('cl-email').value
+      const password = document.getElementById('cl-password').value
+      const result = await Api.patch(`/api/admin/classes/${classId}/login`, { email, password: password || undefined })
+      toast('Identifiants de la classe mis à jour', 'success')
+      closeModal()
+      await loadClasses()
+      if (result.class_login && result.class_login.password) {
+        showClassLoginModal(className, result.class_login.email, result.class_login.password)
+      }
+    } catch (err) { toast(err.message, 'error') }
+  })
 }
 
 async function viewClassDetail(classId) {
@@ -237,19 +279,38 @@ async function viewClassDetail(classId) {
   } catch (err) { toast(err.message, 'error') }
 }
 
+const CLASS_ORDINALS = ['1ère', '2ème', '3ème', '4ème', '5ème', '6ème']
+const CLASS_LEVELS = ['CTEB', 'Humanitaire', 'Primaire']
+
 function showCreateClassModal() {
   const currentYear = schoolYears.find(y => y.is_current) || schoolYears[0]
   openModal(`
     <div class="p-6">
       <h3 class="text-lg font-bold text-slate-800 mb-4"><i class="fas fa-chalkboard mr-2 text-blue-600"></i>Nouvelle classe</h3>
       <form id="create-class-form" class="space-y-3">
-        <div><label class="text-xs font-medium text-slate-600">Nom de la classe *</label><input required id="cc-name" placeholder="6ème A" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
-        <div><label class="text-xs font-medium text-slate-600">Niveau</label><input id="cc-level" placeholder="Primaire / Secondaire" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs font-medium text-slate-600">Nom de la classe *</label>
+            <select required id="cc-ordinal" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
+              ${CLASS_ORDINALS.map(o => `<option value="${o}">${o}</option>`).join('')}
+            </select>
+          </div>
+          <div><label class="text-xs font-medium text-slate-600">Étiquette</label><input id="cc-label" placeholder="ex: A" maxlength="5" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+        </div>
+        <div><label class="text-xs font-medium text-slate-600">Niveau</label>
+          <select id="cc-level" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
+            <option value="">— Choisir —</option>
+            ${CLASS_LEVELS.map(l => `<option value="${l}">${l}</option>`).join('')}
+          </select>
+        </div>
         <div><label class="text-xs font-medium text-slate-600">Année scolaire *</label>
           <select id="cc-year" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
             ${schoolYears.map(y => `<option value="${y.id}" ${currentYear && y.id === currentYear.id ? 'selected' : ''}>${escapeHtml(y.label)}</option>`).join('')}
           </select>
         </div>
+        <hr>
+        <p class="text-xs font-semibold text-slate-500">Identifiants de connexion de la classe</p>
+        <div><label class="text-xs font-medium text-slate-600">Email de connexion *</label><input required type="email" id="cc-login-email" placeholder="6emea@ecole.local" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+        <div><label class="text-xs font-medium text-slate-600">Mot de passe *</label><input required id="cc-login-password" placeholder="Min. 4 caractères" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
         <div class="flex justify-end gap-2 pt-3">
           <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100">Annuler</button>
           <button type="submit" class="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">Créer</button>
@@ -259,11 +320,17 @@ function showCreateClassModal() {
   document.getElementById('create-class-form').addEventListener('submit', async (e) => {
     e.preventDefault()
     try {
-      const className = document.getElementById('cc-name').value
+      const ordinal = document.getElementById('cc-ordinal').value
+      const label = document.getElementById('cc-label').value.trim()
+      const className = label ? `${ordinal} ${label}` : ordinal
+      const loginEmail = document.getElementById('cc-login-email').value
+      const loginPassword = document.getElementById('cc-login-password').value
       const result = await Api.post('/api/admin/classes', {
         name: className,
         level: document.getElementById('cc-level').value,
-        school_year_id: document.getElementById('cc-year').value
+        school_year_id: document.getElementById('cc-year').value,
+        login_email: loginEmail,
+        login_password: loginPassword
       })
       toast('Classe créée', 'success')
       closeModal()
@@ -384,194 +451,12 @@ async function loadStudents() {
   const { students } = await Api.get(url)
   document.getElementById('students-tbody').innerHTML = students.map(s => `
     <tr>
-      <td>${escapeHtml(s.matricule || '—')}</td>
       <td class="font-medium">${escapeHtml(s.nom)}</td>
       <td>${escapeHtml(s.post_nom)}</td>
       <td>${escapeHtml(s.prenom || '—')}</td>
       <td>${s.sexe || '—'}</td>
-      <td>${escapeHtml(s.class_name)}</td>
       <td><button onclick="deleteStudent(${s.id})" class="text-red-600 hover:underline text-xs font-semibold"><i class="fas fa-trash"></i></button></td>
-    </tr>`).join('') || '<tr><td colspan="7" class="text-center text-slate-400 py-6">Aucun élève</td></tr>'
-}
-
-function showCreateStudentModal() {
-  openModal(`
-    <div class="p-6">
-      <h3 class="text-lg font-bold text-slate-800 mb-4"><i class="fas fa-user-graduate mr-2 text-blue-600"></i>Ajouter un élève</h3>
-      <form id="create-student-form" class="space-y-3">
-        <div class="grid grid-cols-2 gap-3">
-          <div><label class="text-xs font-medium text-slate-600">Nom *</label><input required id="st-nom" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
-          <div><label class="text-xs font-medium text-slate-600">Post-nom *</label><input required id="st-postnom" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div><label class="text-xs font-medium text-slate-600">Prénom</label><input id="st-prenom" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
-          <div><label class="text-xs font-medium text-slate-600">Sexe</label>
-            <select id="st-sexe" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"><option value="">—</option><option value="M">M</option><option value="F">F</option></select>
-          </div>
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div><label class="text-xs font-medium text-slate-600">Matricule</label><input id="st-matricule" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
-          <div><label class="text-xs font-medium text-slate-600">Classe *</label>
-            <select required id="st-class" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">${classesCache.map(cl => `<option value="${cl.id}">${escapeHtml(cl.name)}</option>`).join('')}</select>
-          </div>
-        </div>
-        <div><label class="text-xs font-medium text-slate-600">Contact parent</label><input id="st-contact" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
-        <div class="flex justify-end gap-2 pt-3">
-          <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100">Annuler</button>
-          <button type="submit" class="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">Ajouter</button>
-        </div>
-      </form>
-    </div>`)
-  document.getElementById('create-student-form').addEventListener('submit', async (e) => {
-    e.preventDefault()
-    try {
-      await Api.post('/api/admin/students', {
-        nom: document.getElementById('st-nom').value,
-        post_nom: document.getElementById('st-postnom').value,
-        prenom: document.getElementById('st-prenom').value,
-        sexe: document.getElementById('st-sexe').value,
-        matricule: document.getElementById('st-matricule').value,
-        class_id: document.getElementById('st-class').value,
-        parent_contact: document.getElementById('st-contact').value
-      })
-      toast('Élève ajouté', 'success')
-      closeModal()
-      await loadStudents()
-      await loadClasses()
-    } catch (err) { toast(err.message, 'error') }
-  })
-}
-
-// ---------------------------------------------------------------------------
-// IMPORT ÉLÈVES (Excel / CSV) — une seule colonne "Nom et post-nom"
-// ---------------------------------------------------------------------------
-let importedStudentsRows = []
-
-function splitNomPostNom(fullName) {
-  const clean = String(fullName || '').trim().replace(/\s+/g, ' ')
-  if (!clean) return { nom: '', post_nom: '' }
-  const parts = clean.split(' ')
-  const nom = parts[0]
-  const post_nom = parts.slice(1).join(' ') || parts[0]
-  return { nom, post_nom }
-}
-
-function showImportStudentsModal() {
-  importedStudentsRows = []
-  openModal(`
-    <div class="p-6">
-      <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fas fa-file-import mr-2 text-emerald-600"></i>Importer des élèves</h3>
-      <p class="text-xs text-slate-500 mb-4">Fichier Excel (.xlsx/.xls) ou CSV attendu, avec une seule colonne contenant le <strong>Nom et post-nom</strong> de chaque élève (une ligne par élève). La première cellule peut être un en-tête (ex. "Nom et post-nom"), elle sera ignorée automatiquement.</p>
-      <div class="space-y-3">
-        <div>
-          <label class="text-xs font-medium text-slate-600">Classe de destination *</label>
-          <select required id="import-class" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">${classesCache.map(cl => `<option value="${cl.id}">${escapeHtml(cl.name)}</option>`).join('')}</select>
-        </div>
-        <div>
-          <label class="text-xs font-medium text-slate-600">Fichier (.xlsx, .xls, .csv)</label>
-          <input type="file" id="import-file" accept=".xlsx,.xls,.csv" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm bg-white">
-        </div>
-        <div id="import-preview" class="max-h-64 overflow-y-auto border rounded-lg hidden">
-          <table class="data-table"><thead><tr><th>#</th><th>Nom et post-nom (fichier)</th><th>Nom</th><th>Post-nom</th></tr></thead><tbody id="import-preview-tbody"></tbody></table>
-        </div>
-        <div id="import-count" class="text-xs text-slate-500"></div>
-      </div>
-      <div class="flex justify-end gap-2 pt-4 mt-2 border-t">
-        <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100">Annuler</button>
-        <button type="button" id="import-submit-btn" disabled onclick="submitImportedStudents()" class="px-4 py-2 text-sm rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold">
-          <i class="fas fa-upload mr-2"></i>Importer
-        </button>
-      </div>
-    </div>`)
-
-  document.getElementById('import-file').addEventListener('change', handleImportFileSelected)
-}
-
-function handleImportFileSelected(e) {
-  const file = e.target.files[0]
-  if (!file) return
-  const reader = new FileReader()
-  reader.onload = (evt) => {
-    try {
-      const data = new Uint8Array(evt.target.result)
-      const workbook = XLSX.read(data, { type: 'array' })
-      const firstSheetName = workbook.SheetNames[0]
-      const sheet = workbook.Sheets[firstSheetName]
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: '' })
-
-      // Extraire la première colonne de chaque ligne, ignorer les cellules vides
-      let names = rows
-        .map(r => (Array.isArray(r) ? r[0] : r))
-        .map(v => String(v ?? '').trim())
-        .filter(v => v.length > 0)
-
-      // Ignorer une éventuelle ligne d'en-tête ("nom", "nom et post-nom", etc.)
-      if (names.length > 0) {
-        const headerCandidate = names[0].toLowerCase()
-        if (/^(nom|nom et post[- ]?nom|post[- ]?nom|noms)$/i.test(headerCandidate)) {
-          names = names.slice(1)
-        }
-      }
-
-      importedStudentsRows = names.map(n => ({ full: n, ...splitNomPostNom(n) }))
-      renderImportPreview()
-    } catch (err) {
-      toast('Fichier illisible : ' + err.message, 'error')
-    }
-  }
-  reader.readAsArrayBuffer(file)
-}
-
-function renderImportPreview() {
-  const preview = document.getElementById('import-preview')
-  const tbody = document.getElementById('import-preview-tbody')
-  const countEl = document.getElementById('import-count')
-  const btn = document.getElementById('import-submit-btn')
-
-  if (importedStudentsRows.length === 0) {
-    preview.classList.add('hidden')
-    countEl.textContent = 'Aucun élève détecté dans le fichier.'
-    btn.disabled = true
-    return
-  }
-
-  tbody.innerHTML = importedStudentsRows.map((r, i) => `
-    <tr>
-      <td>${i + 1}</td>
-      <td>${escapeHtml(r.full)}</td>
-      <td class="font-medium">${escapeHtml(r.nom)}</td>
-      <td>${escapeHtml(r.post_nom)}</td>
-    </tr>`).join('')
-  preview.classList.remove('hidden')
-  countEl.textContent = `${importedStudentsRows.length} élève(s) détecté(s), prêt(s) à être importés.`
-  btn.disabled = false
-}
-
-async function submitImportedStudents() {
-  const classId = document.getElementById('import-class').value
-  if (!classId) { toast('Veuillez choisir une classe', 'error'); return }
-  if (importedStudentsRows.length === 0) { toast('Aucun élève à importer', 'error'); return }
-
-  const students = importedStudentsRows.map(r => ({
-    nom: r.nom,
-    post_nom: r.post_nom,
-    class_id: classId
-  }))
-
-  const btn = document.getElementById('import-submit-btn')
-  btn.disabled = true
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Import en cours...'
-  try {
-    const res = await Api.post('/api/admin/students/bulk', { students })
-    toast(`${res.created} élève(s) importé(s) avec succès`, 'success')
-    closeModal()
-    await loadStudents()
-    await loadClasses()
-  } catch (err) {
-    toast(err.message, 'error')
-    btn.disabled = false
-    btn.innerHTML = '<i class="fas fa-upload mr-2"></i>Importer'
-  }
+    </tr>`).join('') || '<tr><td colspan="5" class="text-center text-slate-400 py-6">Aucun élève. L\'ajout et l\'import se font depuis l\'espace de connexion de chaque classe.</td></tr>'
 }
 
 async function deleteStudent(id) {
@@ -716,14 +601,22 @@ async function loadRegistre() {
       <td class="font-medium">${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}</td>
       <td>${escapeHtml(s.class_name)}</td>
       <td>${s.montant_jour ? fmtMoney(s.montant_jour, currentSchool?.currency) : '<span class="text-slate-400">—</span>'}</td>
-      <td>${s.receipt_number ? `<span class="badge badge-green">${escapeHtml(s.receipt_number)}</span>` : '—'}</td>
-      <td>
+      <td>${s.receipt_number ? `<span class="badge badge-green">${escapeHtml(s.receipt_number)}</span>${s.payments_count_today > 1 ? ` <span class="badge badge-blue">x${s.payments_count_today}</span>` : ''}` : '—'}</td>
+      <td class="space-x-2 whitespace-nowrap">
         ${s.payment_id
-          ? `<button onclick="printReceipt(${s.payment_id})" class="text-blue-600 hover:underline text-xs font-semibold mr-2"><i class="fas fa-print"></i> Reçu</button>
+          ? `<button onclick="printReceipt(${s.payment_id})" class="text-blue-600 hover:underline text-xs font-semibold"><i class="fas fa-print"></i> Reçu</button>
              <button onclick="cancelPayment(${s.payment_id})" class="text-red-600 hover:underline text-xs font-semibold"><i class="fas fa-rotate-left"></i> Annuler</button>`
-          : `<button onclick="showPayModal(${s.id}, '${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}', ${trimesterId})" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-semibold"><i class="fas fa-hand-holding-dollar mr-1"></i>Percevoir</button>`}
+          : ''}
+        <button onclick="showPayModal(${s.id}, '${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}', ${trimesterId})" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-semibold"><i class="fas fa-hand-holding-dollar mr-1"></i>Percevoir</button>
       </td>
     </tr>`).join('') || '<tr><td colspan="6" class="text-center text-slate-400 py-6">Aucun élève dans cette classe</td></tr>'
+}
+
+function printAllReceipts() {
+  const classId = document.getElementById('perc-class').value
+  const date = document.getElementById('perc-date').value || todayStr()
+  if (!classId) return
+  window.open(`/static/receipts-batch.html?class_id=${classId}&date=${date}`, '_blank')
 }
 
 async function showPayModal(studentId, studentName, trimesterId) {

@@ -34,6 +34,9 @@ perception.get('/my-classes', async (c) => {
 })
 
 // GET /api/perception/registre?class_id=&date=&trimester_id= - registre de perception journalière (Image 1)
+// Un élève peut payer plusieurs fois le même jour (ex: 2 versements) : on liste
+// donc TOUS les paiements du jour pour chaque élève (pas seulement le dernier),
+// afin que le bouton "Percevoir" reste disponible même après un premier paiement.
 perception.get('/registre', async (c) => {
   const user = c.get('user')
   const classId = c.req.query('class_id')
@@ -44,19 +47,45 @@ perception.get('/registre', async (c) => {
 
   const db = c.env.DB
 
-  // Liste des élèves de la classe avec le paiement du jour (s'il existe) pour le trimestre donné
-  let studentsQuery = `
-    SELECT st.id, st.nom, st.post_nom, st.prenom, st.matricule, cl.name as class_name,
-      p.id as payment_id, p.montant as montant_jour, p.receipt_number
-    FROM students st
-    JOIN classes cl ON cl.id = st.class_id
-    LEFT JOIN payments p ON p.student_id = st.id AND p.date_paiement = ? AND p.cancelled = 0
-      ${trimesterId ? 'AND p.trimester_id = ?' : ''}
-    WHERE st.class_id = ? AND st.active = 1
-    ORDER BY st.nom ASC, st.post_nom ASC
+  // 1) Liste des élèves de la classe
+  const { results: baseStudents } = await db
+    .prepare(`SELECT st.id, st.nom, st.post_nom, st.prenom, st.matricule, cl.name as class_name
+              FROM students st JOIN classes cl ON cl.id = st.class_id
+              WHERE st.class_id = ? AND st.active = 1
+              ORDER BY st.nom ASC, st.post_nom ASC`)
+    .bind(classId)
+    .all<any>()
+
+  // 2) Tous les paiements du jour (non annulés) pour cette classe/trimestre
+  let paymentsQuery = `
+    SELECT id as payment_id, student_id, montant as montant_jour, receipt_number
+    FROM payments
+    WHERE class_id = ? AND date_paiement = ? AND cancelled = 0
+    ${trimesterId ? 'AND trimester_id = ?' : ''}
+    ORDER BY id ASC
   `
-  const binds: any[] = trimesterId ? [date, trimesterId, classId] : [date, classId]
-  const { results: students } = await db.prepare(studentsQuery).bind(...binds).all()
+  const payBinds: any[] = trimesterId ? [classId, date, trimesterId] : [classId, date]
+  const { results: dayPayments } = await db.prepare(paymentsQuery).bind(...payBinds).all<any>()
+
+  // 3) Regrouper les paiements du jour par élève
+  const paymentsByStudent = new Map<number, any[]>()
+  for (const p of dayPayments) {
+    if (!paymentsByStudent.has(p.student_id)) paymentsByStudent.set(p.student_id, [])
+    paymentsByStudent.get(p.student_id)!.push(p)
+  }
+
+  const students = baseStudents.map((s: any) => {
+    const pays = paymentsByStudent.get(s.id) || []
+    const totalJour = pays.reduce((sum, p) => sum + p.montant_jour, 0)
+    return {
+      ...s,
+      payments_today: pays, // tous les paiements du jour (pour impression/affichage détaillé)
+      payment_id: pays.length ? pays[pays.length - 1].payment_id : null, // dernier reçu du jour
+      receipt_number: pays.length ? pays[pays.length - 1].receipt_number : null,
+      montant_jour: totalJour || null,
+      payments_count_today: pays.length
+    }
+  })
 
   const totalRow = await db
     .prepare(
@@ -67,6 +96,47 @@ perception.get('/registre', async (c) => {
     .first<{ total: number; cnt: number }>()
 
   return c.json({ date, students, total: totalRow?.total ?? 0, count: totalRow?.cnt ?? 0 })
+})
+
+// GET /api/perception/class-receipts?class_id=&date= - tous les reçus (paiements non annulés)
+// d'une classe pour une date donnée, pour l'impression groupée des reçus de la classe.
+perception.get('/class-receipts', async (c) => {
+  const user = c.get('user')
+  const db = c.env.DB
+  const classId = c.req.query('class_id')
+  const date = c.req.query('date')
+  if (!classId || !date) return c.json({ error: 'class_id et date requis' }, 400)
+
+  const cls = await db.prepare(`SELECT * FROM classes WHERE id = ? AND school_id = ?`).bind(classId, user.school_id).first<any>()
+  if (!cls) return c.json({ error: 'Classe introuvable' }, 404)
+
+  const school = await db.prepare(`SELECT * FROM schools WHERE id = ?`).bind(user.school_id).first<any>()
+
+  const { results: payments } = await db
+    .prepare(
+      `SELECT p.*, st.nom, st.post_nom, st.prenom, cl.name as class_name, t.name as trimester_name, t.number as trimester_number,
+              u.name as percepteur_name, sy.label as year_label
+       FROM payments p
+       JOIN students st ON st.id = p.student_id
+       JOIN classes cl ON cl.id = p.class_id
+       JOIN trimesters t ON t.id = p.trimester_id
+       JOIN school_years sy ON sy.id = t.school_year_id
+       JOIN users u ON u.id = p.percepteur_id
+       WHERE p.class_id = ? AND p.date_paiement = ? AND p.cancelled = 0 AND p.school_id = ?
+       ORDER BY st.nom ASC, st.post_nom ASC, p.id ASC`
+    )
+    .bind(classId, date, user.school_id)
+    .all<any>()
+
+  // Calculer solde/total_paid par élève+trimestre pour chaque reçu affiché
+  const enriched = []
+  for (const p of payments) {
+    const feeAmount = await getFeeAmount(db, p.class_id, p.trimester_id)
+    const totalPaid = await getTotalPaid(db, p.student_id, p.trimester_id)
+    enriched.push({ ...p, fee_amount: feeAmount, total_paid: totalPaid, balance: feeAmount - totalPaid })
+  }
+
+  return c.json({ school, class: cls, date, payments: enriched, count: enriched.length })
 })
 
 // GET /api/perception/student/:id/situation?trimester_id= - situation de paiement d'un élève

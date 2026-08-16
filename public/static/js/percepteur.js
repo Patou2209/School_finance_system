@@ -72,11 +72,10 @@ async function loadRegistre() {
       <td class="font-medium">${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}</td>
       <td>${escapeHtml(s.class_name)}</td>
       <td>${s.montant_jour ? fmtMoney(s.montant_jour, currentSchool?.currency) : '<span class="text-slate-400">—</span>'}</td>
-      <td>${s.receipt_number ? `<span class="badge badge-green">${escapeHtml(s.receipt_number)}</span>` : '—'}</td>
-      <td>
-        ${s.payment_id
-          ? `<button onclick="printReceipt(${s.payment_id})" class="text-blue-600 hover:underline text-xs font-semibold"><i class="fas fa-print"></i> Reçu</button>`
-          : `<button onclick="showPayModal(${s.id}, '${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}', ${trimesterId})" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-semibold"><i class="fas fa-hand-holding-dollar mr-1"></i>Percevoir</button>`}
+      <td>${s.receipt_number ? `<span class="badge badge-green">${escapeHtml(s.receipt_number)}</span>${s.payments_count_today > 1 ? ` <span class="badge badge-blue">x${s.payments_count_today}</span>` : ''}` : '—'}</td>
+      <td class="space-x-2 whitespace-nowrap">
+        ${s.payment_id ? `<button onclick="printReceipt(${s.payment_id})" class="text-blue-600 hover:underline text-xs font-semibold"><i class="fas fa-print"></i> Reçu</button>` : ''}
+        <button onclick="showPayModal(${s.id}, '${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}', ${trimesterId})" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-semibold"><i class="fas fa-hand-holding-dollar mr-1"></i>Percevoir</button>
       </td>
     </tr>`).join('') || '<tr><td colspan="6" class="text-center text-slate-400 py-6">Aucun élève dans cette classe</td></tr>'
 }
@@ -118,6 +117,13 @@ async function showPayModal(studentId, studentName, trimesterId) {
 
 function printReceipt(paymentId) {
   window.open(`/static/receipt.html?payment_id=${paymentId}`, '_blank')
+}
+
+function printAllReceipts() {
+  const classId = document.getElementById('perc-class').value
+  const date = document.getElementById('perc-date').value || todayStr()
+  if (!classId) return
+  window.open(`/static/receipts-batch.html?class_id=${classId}&date=${date}`, '_blank')
 }
 
 async function loadDebts() {

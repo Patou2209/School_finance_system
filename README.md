@@ -13,31 +13,47 @@ SUPER ADMIN (plateforme)
    └── crée le 1er compte ADMIN de chaque école
 
 ADMIN (par école)
-   └── crée les ANNÉES SCOLAIRES (+ 3 TRIMESTRES automatiques)
-   └── crée les CLASSES
-        → un compte de connexion (email + mot de passe) est généré
-          AUTOMATIQUEMENT pour chaque classe (rôle "classe")
+   └── déclare l'ANNÉE SCOLAIRE COURANTE au format RDC AAAA-AAAA
+       (deux années consécutives, ex: 2025-2026) — s'applique à tous
+       les documents et écrans du système (+ 3 TRIMESTRES automatiques)
+   └── crée les CLASSES en choisissant :
+        - le NIVEAU (dropdown : CTEB, Humanitaire, Primaire)
+        - le NOM : dropdown ordinal (1ère a 6ème) + étiquette libre
+          pour distinguer deux classes de même niveau (ex: 2ème A)
+        - l'EMAIL et le MOT DE PASSE de connexion de la classe, SAISIS
+          MANUELLEMENT par l'admin (plus d'auto-génération), modifiables
+          ensuite via le bouton Identifiants
    └── crée le PERSONNEL (ENSEIGNANTS, PERCEPTEURS) avec identifiants
         → les PERCEPTEURS se connectent avec CES identifiants pour
           percevoir dans la/les classe(s) qui leur sont affectées
    └── affecte enseignant(s) et percepteur(s) (≥1) à chaque classe
-   └── inscrit les ÉLÈVES dans les classes
+   └── consulte la liste des ÉLÈVES (l'ajout/import se fait depuis
+       l'espace CLASSE elle-même, voir ci-dessous)
    └── fixe les FRAIS SCOLAIRES par classe × trimestre
    └── consulte perception, dettes, budget, livre de caisse, rapports
-   └── garde la possibilité d'OUVRIR CHAQUE CLASSE à tout moment et de
-       voir tout son contenu (élèves, frais, affectations, paiements,
-       identifiants), et peut régénérer le mot de passe d'une classe
+   └── peut OUVRIR N'IMPORTE QUELLE CLASSE (bouton Ouvrir) et prend
+       alors l'IDENTITÉ COMPLÈTE de cette classe (impersonation réelle :
+       accès en écriture identique à un login classe classique — ajout
+       d'élèves, import, etc.), avec un bandeau Retour à l'administration
+       permettant de revenir instantanément à sa session admin d'origine
 
-CLASSE (compte dédié par classe, créé automatiquement)
-   └── se connecte avec l'email + mot de passe générés à la création
-   └── consultation en LECTURE SEULE de ses propres informations :
-       élèves, registre de perception du jour, dettes, frais fixés
+CLASSE (compte dédié par classe, identifiants définis par l'admin)
+   └── se connecte avec l'email + mot de passe fournis par l'admin
+   └── AJOUTE et IMPORTE (Excel/CSV) SES PROPRES ÉLÈVES (une seule
+       colonne Nom et post-nom par ligne) — fonctionnalité réservée à
+       la classe elle-même (retirée de l'espace admin)
+   └── consulte ses informations : élèves, registre de perception du
+       jour, dettes, frais fixés — imprime les reçus du jour
    └── ne peut PAS enregistrer de paiement (réservé aux percepteurs/admin)
 
 PERCEPTEUR (par classe, un ou plusieurs par classe)
    └── se connecte avec l'email + mot de passe fournis par l'admin
    └── enregistre les paiements des élèves de ses classes (registre journalier)
-   └── génère les reçus
+   └── le bouton Percevoir reste TOUJOURS disponible même après un
+       paiement du jour (un même élève peut payer plusieurs fois/jour ;
+       un badge xN indique le nombre de versements du jour)
+   └── génère les reçus (unitaire ou EN LOT pour toute la classe à une
+       date donnée via Imprimer tous les reçus du jour)
    └── consulte les listes de dettes de ses classes
 
 ENSEIGNANT (par classe)
@@ -82,21 +98,26 @@ Tables principales (voir `migrations/0001_initial_schema.sql`) :
 | Espace Super Admin | `/static/superadmin.html` |
 | Espace Admin École | `/static/admin.html` |
 | Espace Percepteur | `/static/percepteur.html` |
-| Espace Classe (lecture seule) | `/static/classe.html` |
+| Espace Classe (ajout/import élèves, consultation) | `/static/classe.html` |
 | Espace Enseignant | `/static/enseignant.html` |
-| Reçu imprimable | `/static/receipt.html?payment_id=<id>` |
+| Reçu imprimable (unitaire) | `/static/receipt.html?payment_id=<id>` |
+| Reçus imprimables (lot, par classe + date) | `/static/receipts-batch.html?class_id=<id>&date=<AAAA-MM-JJ>` |
 
 ### API principales
 - `POST /api/bootstrap` — crée le 1er super admin (une seule fois)
 - `POST /api/auth/login` / `logout` / `GET /api/auth/me`
 - `GET|POST|PATCH|DELETE /api/superadmin/schools` — gestion écoles (super admin)
-- `GET|POST|PATCH|DELETE /api/admin/*` — années, classes, personnel, élèves, frais, catégories (admin)
-  - `POST /api/admin/classes` — crée la classe **et** génère automatiquement son compte de connexion (email + mot de passe retournés une seule fois dans la réponse `class_login`)
-  - `POST /api/admin/classes/:id/regenerate-password` — régénère le mot de passe du compte de la classe
-  - `GET /api/admin/classes/:id/detail` — vue complète d'une classe pour l'école (élèves, frais, affectations, identifiants, derniers paiements)
-- `GET|POST /api/classe/*` (lecture seule, rôle "classe") — `/me`, `/students`, `/fees`, `/registre`, `/debts`, `/student/:id/situation`
-- `GET /api/perception/registre` — registre journalier ; `POST /api/perception/pay` — paiement + reçu ; `GET /api/perception/debts` — dettes
-- `GET /api/perception/receipt/:paymentId` — données du reçu
+- `GET|POST|PATCH|DELETE /api/admin/*` — années, classes, personnel, élèves (lecture/suppression seulement), frais, catégories (admin)
+  - `POST /api/admin/school-years` — valide le format AAAA-AAAA (deux années consécutives)
+  - `POST /api/admin/classes` — crée la classe avec `level` (CTEB/Humanitaire/Primaire) et les identifiants fournis manuellement (`login_email`, `login_password`)
+  - `PATCH /api/admin/classes/:id/login` — modifie l'email et/ou le mot de passe de connexion d'une classe
+  - `POST /api/admin/classes/:id/impersonate` — l'admin obtient un jeton classe (impersonation complète) pour cette classe
+  - `GET /api/admin/classes/:id/detail` — vue complète d'une classe pour l'école
+- `GET|POST|DELETE /api/classe/students*` (rôle "classe") — ajout unitaire, import en masse, suppression de SES propres élèves
+- `GET /api/classe/*` — `/me`, `/students`, `/fees`, `/registre`, `/debts`, `/student/:id/situation`
+- `GET /api/perception/registre` — registre journalier (agrège tous les paiements du jour par élève) ; `POST /api/perception/pay` — paiement + reçu (répétable plusieurs fois/jour) ; `GET /api/perception/debts` — dettes
+- `GET /api/perception/receipt/:paymentId` — données d'un reçu ; `GET /api/perception/class-receipts?class_id=&date=` — tous les reçus d'une classe pour une date (impression en lot)
+- `POST /api/auth/restore-admin` — retour depuis une session d'impersonation classe vers l'admin d'origine
 - `GET|POST|PATCH|DELETE /api/cashbook` — livre de caisse
 - `GET|POST|DELETE /api/budget/previsions`, `GET /api/budget/comparison`
 - `GET /api/reports/trimester/:id`, `GET /api/reports/year-summary`
@@ -119,13 +140,15 @@ Tables principales (voir `migrations/0001_initial_schema.sql`) :
 ### ✅ Fonctionnalités complètes et testées (API + interface)
 - Authentification par rôle (JWT maison HS256, cookie HttpOnly), bootstrap super admin
 - CRUD écoles (super admin), activation/désactivation
-- CRUD années scolaires + génération automatique des 3 trimestres
-- CRUD classes (avec génération automatique d'un compte de connexion classe email+mot de passe), personnel (enseignants/percepteurs avec identifiants), affectations N-N
-- Espace **Classe** dédié en lecture seule (`/static/classe.html`) : élèves, registre du jour, dettes, frais fixés
-- Vue **Admin** "Voir" une classe : détail complet (élèves, frais, affectations, identifiants, derniers paiements) + régénération du mot de passe de la classe
-- CRUD élèves, import unitaire **et import en masse** (Excel/CSV, une seule colonne "Nom et post-nom" — parsing côté client via SheetJS, puis répartition automatique en `nom` / `post_nom`)
+- Années scolaires au format RDC AAAA-AAAA (validation stricte, deux années consécutives) + génération automatique des 3 trimestres
+- CRUD classes : niveau en dropdown (CTEB/Humanitaire/Primaire), nom composé (dropdown ordinal + étiquette), identifiants de connexion saisis manuellement par l'admin (modifiables via PATCH)
+- **Impersonation admin → classe** : l'admin peut ouvrir n'importe quelle classe et obtenir un accès complet identique à un login classe (JWT avec claim `impersonating` signe), retour à l'admin en un clic sans nouveau login
+- Personnel (enseignants/percepteurs avec identifiants), affectations N-N
+- Espace **Classe** (`/static/classe.html`) : ajout unitaire **et import en masse** (Excel/CSV) de SES propres élèves, suppression, consultation registre/dettes/frais, **impression en lot des reçus du jour**, bandeau de retour si impersonation
+- Espace **Admin** : liste élèves en lecture (sans Matricule/Classe), vue détail "Voir" une classe, bouton "Ouvrir" (impersonation)
 - Fixation des frais par classe × trimestre
-- Registre de perception journalière + paiement + génération de reçu imprimable
+- **Registre de perception multi-paiements/jour** : bouton Percevoir toujours affiché, badge xN si plusieurs versements le même jour
+- **Impression en lot des reçus d'une classe pour une date donnée**
 - Listes de dettes par classe/trimestre
 - Livre de caisse avec solde cumulé + agrégation automatique "Frais scolaire" (upsert idempotent, resynchronisation à l'annulation d'un paiement)
 - Prévision budgétaire (catégories, montants prévus) + comparaison prévu/réalisé

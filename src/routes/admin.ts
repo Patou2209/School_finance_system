@@ -5,7 +5,8 @@
 import { Hono } from 'hono'
 import type { AppEnv } from '../types'
 import { requireAuth, requireRole } from '../middleware/auth'
-import { hashPassword, generateRandomPassword } from '../utils/crypto'
+import { hashPassword, signJWT } from '../utils/crypto'
+import { getSecret } from '../middleware/auth'
 
 const admin = new Hono<AppEnv>()
 admin.use('*', requireAuth, requireRole('admin'))
@@ -14,32 +15,17 @@ function schoolId(c: any): number {
   return c.get('user').school_id
 }
 
-/**
- * Génère un email de connexion unique pour le compte "classe" à partir du code
- * école et du nom de la classe (slugifié). En cas de collision improbable,
- * un suffixe numérique est ajouté.
- */
-function slugify(str: string): string {
-  return String(str)
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'classe'
+/** Valide le format d'une année scolaire "à la RDC" : deux années consécutives, ex. "2025-2026". */
+function isValidSchoolYearLabel(label: string): boolean {
+  const m = /^(\d{4})-(\d{4})$/.exec(String(label || '').trim())
+  if (!m) return false
+  const y1 = parseInt(m[1], 10)
+  const y2 = parseInt(m[2], 10)
+  return y2 === y1 + 1
 }
 
-async function generateClassEmail(db: D1Database, schoolCode: string, className: string): Promise<string> {
-  const base = `classe.${slugify(className)}.${slugify(schoolCode)}@ecole.local`
-  const existing = await db.prepare(`SELECT id FROM users WHERE email = ?`).bind(base).first()
-  if (!existing) return base
-  let n = 2
-  while (true) {
-    const candidate = `classe.${slugify(className)}${n}.${slugify(schoolCode)}@ecole.local`
-    const clash = await db.prepare(`SELECT id FROM users WHERE email = ?`).bind(candidate).first()
-    if (!clash) return candidate
-    n++
-  }
-}
+/** Niveaux de classe autorisés. */
+const ALLOWED_LEVELS = ['CTEB', 'Humanitaire', 'Primaire']
 
 // ---------------------------------------------------------------------------
 // ANNEES SCOLAIRES
@@ -56,6 +42,9 @@ admin.get('/school-years', async (c) => {
 admin.post('/school-years', async (c) => {
   const { label, start_date, end_date, set_current } = await c.req.json<any>()
   if (!label) return c.json({ error: 'Le libellé est requis' }, 400)
+  if (!isValidSchoolYearLabel(label)) {
+    return c.json({ error: 'Le libellé doit être au format "AAAA-AAAA" avec deux années consécutives (ex: 2025-2026)' }, 400)
+  }
   const sid = schoolId(c)
 
   if (set_current) {
@@ -125,17 +114,31 @@ admin.get('/classes', async (c) => {
   return c.json({ classes: results })
 })
 
-// POST /classes - crée la classe ET son compte de connexion dédié (rôle 'classe')
-// L'email et le mot de passe générés sont retournés une seule fois à l'admin
-// (le mot de passe en clair n'est jamais stocké ni ré-affichable ensuite).
+// POST /classes - crée la classe ET son compte de connexion dédié (rôle 'classe').
+// L'admin choisit lui-même l'email et le mot de passe de connexion de la classe
+// (plus d'auto-génération). Le niveau doit être l'un des 3 niveaux autorisés, et
+// le nom est composé côté frontend (ordinal + étiquette, ex: "2ème A").
 admin.post('/classes', async (c) => {
-  const { name, level, school_year_id } = await c.req.json<any>()
+  const { name, level, school_year_id, login_email, login_password } = await c.req.json<any>()
   if (!name || !school_year_id) return c.json({ error: 'Nom et année scolaire requis' }, 400)
+  if (level && !ALLOWED_LEVELS.includes(level)) {
+    return c.json({ error: `Niveau invalide (autorisés: ${ALLOWED_LEVELS.join(', ')})` }, 400)
+  }
+  if (!login_email || !login_password) {
+    return c.json({ error: "L'email et le mot de passe de connexion de la classe sont requis" }, 400)
+  }
+  if (login_password.length < 4) {
+    return c.json({ error: 'Le mot de passe doit contenir au moins 4 caractères' }, 400)
+  }
   const db = c.env.DB
   const sid = schoolId(c)
 
   const school = await db.prepare(`SELECT code FROM schools WHERE id = ?`).bind(sid).first<{ code: string }>()
   if (!school) return c.json({ error: 'École introuvable' }, 404)
+
+  const emailNorm = String(login_email).toLowerCase().trim()
+  const existingEmail = await db.prepare(`SELECT id FROM users WHERE email = ?`).bind(emailNorm).first()
+  if (existingEmail) return c.json({ error: 'Cet email de connexion est déjà utilisé' }, 409)
 
   let classId: number
   try {
@@ -148,25 +151,26 @@ admin.post('/classes', async (c) => {
     return c.json({ error: 'Cette classe existe déjà pour cette année scolaire' }, 409)
   }
 
-  const loginEmail = await generateClassEmail(db, school.code, name)
-  const loginPassword = generateRandomPassword(10)
-  const { hash, salt } = await hashPassword(loginPassword)
+  const { hash, salt } = await hashPassword(login_password)
   await db
     .prepare(
       `INSERT INTO users (school_id, role, class_id, name, email, password_hash, password_salt) VALUES (?, 'classe', ?, ?, ?, ?, ?)`
     )
-    .bind(sid, classId, `Classe ${name}`, loginEmail, hash, salt)
+    .bind(sid, classId, `Classe ${name}`, emailNorm, hash, salt)
     .run()
 
   return c.json({
     success: true,
     id: classId,
-    class_login: { email: loginEmail, password: loginPassword }
+    class_login: { email: emailNorm, password: login_password }
   })
 })
 
 admin.patch('/classes/:id', async (c) => {
   const { name, level } = await c.req.json<any>()
+  if (level && !ALLOWED_LEVELS.includes(level)) {
+    return c.json({ error: `Niveau invalide (autorisés: ${ALLOWED_LEVELS.join(', ')})` }, 400)
+  }
   await c.env.DB.prepare(`UPDATE classes SET name = COALESCE(?, name), level = COALESCE(?, level) WHERE id = ? AND school_id = ?`)
     .bind(name, level, c.req.param('id'), schoolId(c))
     .run()
@@ -178,34 +182,86 @@ admin.delete('/classes/:id', async (c) => {
   return c.json({ success: true })
 })
 
-// POST /classes/:id/regenerate-password - régénère le mot de passe du compte de la classe
-admin.post('/classes/:id/regenerate-password', async (c) => {
+// PATCH /classes/:id/login - l'admin définit/modifie lui-même l'email et/ou le mot de passe
+// de connexion de la classe (plus d'auto-génération). Si la classe n'a pas encore de compte
+// (cas d'anciennes données), il est créé à la volée avec les identifiants fournis.
+admin.patch('/classes/:id/login', async (c) => {
   const db = c.env.DB
   const sid = schoolId(c)
   const classId = c.req.param('id')
+  const { email, password } = await c.req.json<any>()
 
   const cls = await db.prepare(`SELECT id, name FROM classes WHERE id = ? AND school_id = ?`).bind(classId, sid).first<any>()
   if (!cls) return c.json({ error: 'Classe introuvable' }, 404)
+  if (!email) return c.json({ error: "L'email de connexion est requis" }, 400)
+  if (password && password.length < 4) return c.json({ error: 'Le mot de passe doit contenir au moins 4 caractères' }, 400)
 
+  const emailNorm = String(email).toLowerCase().trim()
   const account = await db.prepare(`SELECT id, email FROM users WHERE class_id = ? AND role = 'classe'`).bind(classId).first<any>()
-  const newPassword = generateRandomPassword(10)
-  const { hash, salt } = await hashPassword(newPassword)
+
+  // Vérifier l'unicité de l'email (hors compte actuel de cette classe)
+  const emailClash = await db.prepare(`SELECT id FROM users WHERE email = ? AND id != ?`).bind(emailNorm, account?.id || -1).first()
+  if (emailClash) return c.json({ error: 'Cet email est déjà utilisé par un autre compte' }, 409)
 
   if (account) {
-    await db.prepare(`UPDATE users SET password_hash = ?, password_salt = ?, active = 1 WHERE id = ?`)
-      .bind(hash, salt, account.id)
-      .run()
-    return c.json({ success: true, class_login: { email: account.email, password: newPassword } })
+    if (password) {
+      const { hash, salt } = await hashPassword(password)
+      await db.prepare(`UPDATE users SET email = ?, password_hash = ?, password_salt = ?, active = 1 WHERE id = ?`)
+        .bind(emailNorm, hash, salt, account.id)
+        .run()
+    } else {
+      await db.prepare(`UPDATE users SET email = ?, active = 1 WHERE id = ?`).bind(emailNorm, account.id).run()
+    }
+    return c.json({ success: true, class_login: { email: emailNorm, password: password || undefined } })
   }
 
-  // Sécurité : si (cas ancien) la classe n'avait pas encore de compte, on le crée maintenant
-  const school = await db.prepare(`SELECT code FROM schools WHERE id = ?`).bind(sid).first<{ code: string }>()
-  const loginEmail = await generateClassEmail(db, school!.code, cls.name)
+  if (!password) return c.json({ error: 'Mot de passe requis pour créer le compte de connexion' }, 400)
+  const { hash, salt } = await hashPassword(password)
   await db
     .prepare(`INSERT INTO users (school_id, role, class_id, name, email, password_hash, password_salt) VALUES (?, 'classe', ?, ?, ?, ?, ?)`)
-    .bind(sid, classId, `Classe ${cls.name}`, loginEmail, hash, salt)
+    .bind(sid, classId, `Classe ${cls.name}`, emailNorm, hash, salt)
     .run()
-  return c.json({ success: true, class_login: { email: loginEmail, password: newPassword } })
+  return c.json({ success: true, class_login: { email: emailNorm, password } })
+})
+
+// POST /classes/:id/impersonate - l'admin "ouvre" la classe et obtient un jeton
+// avec le rôle 'classe' pour cette classe précise, avec accès complet comme si
+// il/elle s'était connecté(e) en tant que classe. Le jeton garde une empreinte
+// signée de l'admin d'origine (claim `impersonating`) pour permettre le retour.
+admin.post('/classes/:id/impersonate', async (c) => {
+  const db = c.env.DB
+  const sid = schoolId(c)
+  const classId = c.req.param('id')
+  const adminUser = c.get('user')
+
+  const cls = await db.prepare(`SELECT * FROM classes WHERE id = ? AND school_id = ?`).bind(classId, sid).first<any>()
+  if (!cls) return c.json({ error: 'Classe introuvable' }, 404)
+
+  const account = await db.prepare(`SELECT * FROM users WHERE class_id = ? AND role = 'classe'`).bind(classId).first<any>()
+  if (!account) return c.json({ error: "Cette classe n'a pas encore de compte de connexion. Définissez d'abord ses identifiants." }, 404)
+
+  const payload = {
+    uid: account.id,
+    role: 'classe' as const,
+    school_id: account.school_id,
+    class_id: account.class_id,
+    name: account.name,
+    email: account.email,
+    exp: Math.floor(Date.now() / 1000) + 60 * 60 * 4, // 4h, session d'impersonation limitée
+    impersonating: {
+      admin_uid: adminUser.uid,
+      admin_name: adminUser.name,
+      admin_email: adminUser.email
+    }
+  }
+  const token = await signJWT(payload, getSecret(c))
+  c.header('Set-Cookie', `token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 4}`)
+
+  return c.json({
+    success: true,
+    token,
+    user: { id: account.id, role: 'classe', school_id: account.school_id, class_id: account.class_id, name: account.name, email: account.email }
+  })
 })
 
 // GET /classes/:id/detail - vue complète d'une classe pour l'école (admin) :
@@ -406,36 +462,10 @@ admin.get('/students', async (c) => {
   return c.json({ students: results })
 })
 
-admin.post('/students', async (c) => {
-  const body = await c.req.json<any>()
-  const { nom, post_nom, prenom, sexe, class_id, matricule, date_naissance, parent_contact } = body
-  if (!nom || !post_nom || !class_id) return c.json({ error: 'Nom, post-nom et classe requis' }, 400)
-  const result = await c.env.DB.prepare(
-    `INSERT INTO students (school_id, class_id, matricule, nom, post_nom, prenom, sexe, date_naissance, parent_contact)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  )
-    .bind(schoolId(c), class_id, matricule || null, nom, post_nom, prenom || null, sexe || null, date_naissance || null, parent_contact || null)
-    .run()
-  return c.json({ success: true, id: result.meta.last_row_id })
-})
-
-admin.post('/students/bulk', async (c) => {
-  // Import en masse : [{nom, post_nom, prenom?, sexe?, class_id, matricule?}, ...]
-  const { students } = await c.req.json<{ students: any[] }>()
-  if (!Array.isArray(students) || students.length === 0) return c.json({ error: 'Liste vide' }, 400)
-  const sid = schoolId(c)
-  let created = 0
-  for (const s of students) {
-    if (!s.nom || !s.post_nom || !s.class_id) continue
-    await c.env.DB.prepare(
-      `INSERT INTO students (school_id, class_id, matricule, nom, post_nom, prenom, sexe) VALUES (?, ?, ?, ?, ?, ?, ?)`
-    )
-      .bind(sid, s.class_id, s.matricule || null, s.nom, s.post_nom, s.prenom || null, s.sexe || null)
-      .run()
-    created++
-  }
-  return c.json({ success: true, created })
-})
+// NOTE : l'ajout et l'import en masse d'élèves ont été déplacés vers l'espace
+// CLASSE (routes/classe.ts) : seule la classe elle-même (connectée avec son
+// propre compte) peut ajouter/importer SES élèves. L'admin école conserve la
+// consultation (GET), la modification (PATCH) et la suppression (DELETE).
 
 admin.patch('/students/:id', async (c) => {
   const body = await c.req.json<any>()
