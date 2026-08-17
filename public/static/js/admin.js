@@ -40,8 +40,18 @@ function setupTabs() {
       if (link.dataset.tab === 'students') await loadStudents()
       if (link.dataset.tab === 'cashbook') await loadCashbook()
       if (link.dataset.tab === 'budget') await loadBudget()
-      if (link.dataset.tab === 'perception') await loadRegistre()
-      if (link.dataset.tab === 'debts') await loadDebts()
+      if (link.dataset.tab === 'perception') {
+        currentPerceptionClass = null
+        document.getElementById('perception-detail-view').classList.add('hidden')
+        document.getElementById('perception-classes-view').classList.remove('hidden')
+        await loadPerceptionClasses()
+      }
+      if (link.dataset.tab === 'debts') {
+        currentDebtsClass = null
+        document.getElementById('debts-detail-view').classList.add('hidden')
+        document.getElementById('debts-classes-view').classList.remove('hidden')
+        await loadDebtsClasses()
+      }
     })
   })
 }
@@ -572,17 +582,57 @@ async function saveFee(classId, trimesterId) {
 }
 
 // ---------------------------------------------------------------------------
-// PERCEPTION (registre journalier)
+// PERCEPTION (vue 1 : cartes KPI par classe -> vue 2 : détail/registre journalier)
 // ---------------------------------------------------------------------------
+let currentPerceptionClass = null // { id, name }
+
 function populatePerceptionSelectors() {
-  const classSel = document.getElementById('perc-class')
-  classSel.innerHTML = classesCache.map(cl => `<option value="${cl.id}">${escapeHtml(cl.name)}</option>`).join('')
-  const trimSel = document.getElementById('perc-trimester')
-  trimSel.innerHTML = trimesters.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')
+  const trimOptions = trimesters.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')
+  document.getElementById('perc-summary-trimester').innerHTML = trimOptions
+  document.getElementById('perc-trimester').innerHTML = trimOptions
+  document.getElementById('perc-summary-date').value = todayStr()
+}
+
+async function loadPerceptionClasses() {
+  const trimesterId = document.getElementById('perc-summary-trimester').value
+  const date = document.getElementById('perc-summary-date').value || todayStr()
+  if (!trimesterId) return
+  const data = await Api.get(`/api/perception/registre-summary?date=${date}&trimester_id=${trimesterId}`)
+
+  document.getElementById('perception-classes-grid').innerHTML = data.classes.map(cl => `
+    <div onclick="openPerceptionClass(${cl.class_id}, '${escapeHtml(cl.class_name)}')" class="section-card cursor-pointer hover:shadow-md hover:border-blue-300 transition">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold text-slate-800">${escapeHtml(cl.class_name)}</h3>
+        <span class="badge badge-blue">${escapeHtml(cl.level || '—')}</span>
+      </div>
+      <div class="grid grid-cols-2 gap-2 text-center">
+        <div class="bg-slate-50 rounded-lg p-2"><p class="text-xs text-slate-500">Ont payé</p><p class="font-bold text-sm text-slate-800">${cl.paid_count}/${cl.students_count}</p></div>
+        <div class="bg-slate-50 rounded-lg p-2"><p class="text-xs text-slate-500">Perçu</p><p class="font-bold text-sm text-green-600">${fmtMoney(cl.total_collected, currentSchool?.currency)}</p></div>
+      </div>
+      <p class="text-xs text-blue-600 font-semibold mt-3 text-right">Ouvrir <i class="fas fa-arrow-right ml-1"></i></p>
+    </div>`).join('') || '<p class="text-slate-400 text-sm col-span-full text-center py-6">Aucune classe</p>'
+}
+
+function openPerceptionClass(classId, className) {
+  currentPerceptionClass = { id: classId, name: className }
+  document.getElementById('perception-detail-title').textContent = className
+  document.getElementById('perc-trimester').value = document.getElementById('perc-summary-trimester').value
+  document.getElementById('perc-date').value = document.getElementById('perc-summary-date').value || todayStr()
+  document.getElementById('perception-classes-view').classList.add('hidden')
+  document.getElementById('perception-detail-view').classList.remove('hidden')
+  loadRegistre()
+}
+
+function closePerceptionDetail() {
+  currentPerceptionClass = null
+  document.getElementById('perception-detail-view').classList.add('hidden')
+  document.getElementById('perception-classes-view').classList.remove('hidden')
+  loadPerceptionClasses()
 }
 
 async function loadRegistre() {
-  const classId = document.getElementById('perc-class').value
+  if (!currentPerceptionClass) return
+  const classId = currentPerceptionClass.id
   const trimesterId = document.getElementById('perc-trimester').value
   const date = document.getElementById('perc-date').value || todayStr()
   if (!classId || !trimesterId) return
@@ -599,7 +649,6 @@ async function loadRegistre() {
     <tr>
       <td>${idx + 1}</td>
       <td class="font-medium">${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}</td>
-      <td>${escapeHtml(s.class_name)}</td>
       <td>${s.montant_jour ? fmtMoney(s.montant_jour, currentSchool?.currency) : '<span class="text-slate-400">—</span>'}</td>
       <td>${s.receipt_number ? `<span class="badge badge-green">${escapeHtml(s.receipt_number)}</span>${s.payments_count_today > 1 ? ` <span class="badge badge-blue">x${s.payments_count_today}</span>` : ''}` : '—'}</td>
       <td class="space-x-2 whitespace-nowrap">
@@ -609,14 +658,13 @@ async function loadRegistre() {
           : ''}
         <button onclick="showPayModal(${s.id}, '${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}', ${trimesterId})" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-semibold"><i class="fas fa-hand-holding-dollar mr-1"></i>Percevoir</button>
       </td>
-    </tr>`).join('') || '<tr><td colspan="6" class="text-center text-slate-400 py-6">Aucun élève dans cette classe</td></tr>'
+    </tr>`).join('') || '<tr><td colspan="5" class="text-center text-slate-400 py-6">Aucun élève dans cette classe</td></tr>'
 }
 
 function printAllReceipts() {
-  const classId = document.getElementById('perc-class').value
+  if (!currentPerceptionClass) return
   const date = document.getElementById('perc-date').value || todayStr()
-  if (!classId) return
-  window.open(`/static/receipts-batch.html?class_id=${classId}&date=${date}`, '_blank')
+  window.open(`/static/receipts-batch.html?class_id=${currentPerceptionClass.id}&date=${date}`, '_blank')
 }
 
 async function showPayModal(studentId, studentName, trimesterId) {
@@ -668,22 +716,54 @@ function printReceipt(paymentId) {
 }
 
 // ---------------------------------------------------------------------------
-// DETTES
+// DETTES (vue 1 : cartes KPI par classe -> vue 2 : détail des dettes d'une classe)
 // ---------------------------------------------------------------------------
+let currentDebtsClass = null // { id, name }
+
 function populateDebtSelectors() {
-  const trimSel = document.getElementById('debt-trimester')
-  trimSel.innerHTML = trimesters.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')
-  const classSel = document.getElementById('debt-class')
-  classSel.innerHTML = '<option value="">Toutes les classes</option>' + classesCache.map(cl => `<option value="${cl.id}">${escapeHtml(cl.name)}</option>`).join('')
+  document.getElementById('debt-summary-trimester').innerHTML = trimesters.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')
+}
+
+async function loadDebtsClasses() {
+  const trimesterId = document.getElementById('debt-summary-trimester').value
+  if (!trimesterId) return
+  const data = await Api.get(`/api/perception/debts-summary?trimester_id=${trimesterId}`)
+
+  document.getElementById('debts-classes-grid').innerHTML = data.classes.map(cl => `
+    <div onclick="openDebtsClass(${cl.class_id}, '${escapeHtml(cl.class_name)}')" class="section-card cursor-pointer hover:shadow-md hover:border-blue-300 transition">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold text-slate-800">${escapeHtml(cl.class_name)}</h3>
+        <span class="badge badge-blue">${escapeHtml(cl.level || '—')}</span>
+      </div>
+      <div class="grid grid-cols-2 gap-2 text-center">
+        <div class="bg-slate-50 rounded-lg p-2"><p class="text-xs text-slate-500">Endettés</p><p class="font-bold text-sm ${cl.debtors_count > 0 ? 'text-red-600' : 'text-green-600'}">${cl.debtors_count}</p></div>
+        <div class="bg-slate-50 rounded-lg p-2"><p class="text-xs text-slate-500">Total dette</p><p class="font-bold text-sm text-red-600">${fmtMoney(cl.total_debt, currentSchool?.currency)}</p></div>
+      </div>
+      <p class="text-xs text-blue-600 font-semibold mt-3 text-right">Ouvrir <i class="fas fa-arrow-right ml-1"></i></p>
+    </div>`).join('') || '<p class="text-slate-400 text-sm col-span-full text-center py-6">Aucune classe</p>'
+}
+
+function openDebtsClass(classId, className) {
+  currentDebtsClass = { id: classId, name: className }
+  document.getElementById('debts-detail-title').textContent = className
+  document.getElementById('debts-classes-view').classList.add('hidden')
+  document.getElementById('debts-detail-view').classList.remove('hidden')
+  loadDebts()
+}
+
+function closeDebtsDetail() {
+  currentDebtsClass = null
+  document.getElementById('debts-detail-view').classList.add('hidden')
+  document.getElementById('debts-classes-view').classList.remove('hidden')
+  loadDebtsClasses()
 }
 
 async function loadDebts() {
-  const trimesterId = document.getElementById('debt-trimester').value
-  const classId = document.getElementById('debt-class').value
+  if (!currentDebtsClass) return
+  const trimesterId = document.getElementById('debt-summary-trimester').value
+  const classId = currentDebtsClass.id
   if (!trimesterId) return
-  let url = `/api/perception/debts?trimester_id=${trimesterId}`
-  if (classId) url += `&class_id=${classId}`
-  const data = await Api.get(url)
+  const data = await Api.get(`/api/perception/debts?trimester_id=${trimesterId}&class_id=${classId}`)
 
   document.getElementById('debts-summary').innerHTML = `
     <div class="stat-card"><p class="text-xs text-slate-500 mb-1">Élèves endettés</p><p class="text-xl font-bold text-red-600">${data.count}</p></div>
@@ -693,11 +773,10 @@ async function loadDebts() {
   document.getElementById('debts-tbody').innerHTML = data.debts.map(d => `
     <tr>
       <td class="font-medium">${escapeHtml(d.nom)} ${escapeHtml(d.post_nom)}</td>
-      <td>${escapeHtml(d.class_name)}</td>
       <td>${fmtMoney(d.fee_amount, currentSchool?.currency)}</td>
       <td class="text-green-600">${fmtMoney(d.total_paid, currentSchool?.currency)}</td>
       <td class="text-red-600 font-semibold">${fmtMoney(d.balance, currentSchool?.currency)}</td>
-    </tr>`).join('') || '<tr><td colspan="5" class="text-center text-slate-400 py-6">Aucune dette : tous les frais sont soldés 🎉</td></tr>'
+    </tr>`).join('') || '<tr><td colspan="4" class="text-center text-slate-400 py-6">Aucune dette : tous les frais sont soldés 🎉</td></tr>'
 }
 
 // ---------------------------------------------------------------------------

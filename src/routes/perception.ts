@@ -33,6 +33,98 @@ perception.get('/my-classes', async (c) => {
   return c.json({ classes: results })
 })
 
+// GET /api/perception/registre-summary?date=&trimester_id= - KPI par classe (élèves ayant payé / total perçu)
+// pour la vue "cartes de classes" avant de rentrer dans le détail d'une classe.
+perception.get('/registre-summary', async (c) => {
+  const user = c.get('user')
+  const db = c.env.DB
+  const date = c.req.query('date') || new Date().toISOString().slice(0, 10)
+  const trimesterId = c.req.query('trimester_id')
+  if (!trimesterId) return c.json({ error: 'trimester_id requis' }, 400)
+
+  let classesQuery = `SELECT id, name, level FROM classes WHERE school_id = ? ORDER BY name`
+  let classBinds: any[] = [user.school_id]
+  if (user.role === 'percepteur') {
+    classesQuery = `SELECT cl.id, cl.name, cl.level FROM classes cl
+                     JOIN class_percepteurs cp ON cp.class_id = cl.id
+                     WHERE cp.percepteur_id = ? AND cl.school_id = ?
+                     ORDER BY cl.name`
+    classBinds = [user.uid, user.school_id]
+  }
+  const { results: classes } = await db.prepare(classesQuery).bind(...classBinds).all<any>()
+
+  const summary = []
+  for (const cl of classes) {
+    const studentsCountRow = await db
+      .prepare(`SELECT COUNT(*) as cnt FROM students WHERE class_id = ? AND active = 1`)
+      .bind(cl.id)
+      .first<{ cnt: number }>()
+    const dayRow = await db
+      .prepare(
+        `SELECT COUNT(DISTINCT student_id) as paid_count, COALESCE(SUM(montant),0) as total
+         FROM payments WHERE class_id = ? AND date_paiement = ? AND trimester_id = ? AND cancelled = 0`
+      )
+      .bind(cl.id, date, trimesterId)
+      .first<{ paid_count: number; total: number }>()
+    summary.push({
+      class_id: cl.id,
+      class_name: cl.name,
+      level: cl.level,
+      students_count: studentsCountRow?.cnt ?? 0,
+      paid_count: dayRow?.paid_count ?? 0,
+      total_collected: dayRow?.total ?? 0
+    })
+  }
+
+  return c.json({ date, trimester_id: Number(trimesterId), classes: summary })
+})
+
+// GET /api/perception/debts-summary?trimester_id= - KPI par classe (nb élèves endettés / total dette)
+// pour la vue "cartes de classes" avant de rentrer dans le détail d'une classe.
+perception.get('/debts-summary', async (c) => {
+  const user = c.get('user')
+  const db = c.env.DB
+  const trimesterId = c.req.query('trimester_id')
+  if (!trimesterId) return c.json({ error: 'trimester_id requis' }, 400)
+
+  let classesQuery = `SELECT id, name, level FROM classes WHERE school_id = ? ORDER BY name`
+  let classBinds: any[] = [user.school_id]
+  if (user.role === 'percepteur') {
+    classesQuery = `SELECT cl.id, cl.name, cl.level FROM classes cl
+                     JOIN class_percepteurs cp ON cp.class_id = cl.id
+                     WHERE cp.percepteur_id = ? AND cl.school_id = ?
+                     ORDER BY cl.name`
+    classBinds = [user.uid, user.school_id]
+  }
+  const { results: classes } = await db.prepare(classesQuery).bind(...classBinds).all<any>()
+
+  const summary = []
+  for (const cl of classes) {
+    const { results: rows } = await db
+      .prepare(
+        `SELECT st.id,
+           COALESCE(fs.montant, 0) as fee_amount,
+           COALESCE((SELECT SUM(p.montant) FROM payments p WHERE p.student_id = st.id AND p.trimester_id = ? AND p.cancelled = 0), 0) as total_paid
+         FROM students st
+         LEFT JOIN fee_structures fs ON fs.class_id = st.class_id AND fs.trimester_id = ?
+         WHERE st.class_id = ? AND st.active = 1`
+      )
+      .bind(trimesterId, trimesterId, cl.id)
+      .all<any>()
+    const debtors = rows.filter((r: any) => r.fee_amount - r.total_paid > 0)
+    const totalDebt = debtors.reduce((sum: number, r: any) => sum + (r.fee_amount - r.total_paid), 0)
+    summary.push({
+      class_id: cl.id,
+      class_name: cl.name,
+      level: cl.level,
+      debtors_count: debtors.length,
+      total_debt: totalDebt
+    })
+  }
+
+  return c.json({ trimester_id: Number(trimesterId), classes: summary })
+})
+
 // GET /api/perception/registre?class_id=&date=&trimester_id= - registre de perception journalière (Image 1)
 // Un élève peut payer plusieurs fois le même jour (ex: 2 versements) : on liste
 // donc TOUS les paiements du jour pour chaque élève (pas seulement le dernier),

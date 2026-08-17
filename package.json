@@ -3,15 +3,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:sandbox": "wrangler pages dev dist --d1=webapp-production --local --ip 0.0.0.0 --port 3000",
+    "dev:sandbox": "wrangler pages dev dist --d1=scoloane_finance --local --ip 0.0.0.0 --port 3000",
     "build": "vite build",
     "preview": "wrangler pages dev",
     "deploy": "npm run build && wrangler pages deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings",
-    "db:migrate:local": "wrangler d1 migrations apply webapp-production --local",
-    "db:migrate:prod": "wrangler d1 migrations apply webapp-production",
-    "db:console:local": "wrangler d1 execute webapp-production --local",
-    "db:console:prod": "wrangler d1 execute webapp-production",
+    "db:migrate:local": "wrangler d1 migrations apply scoloane_finance --local",
+    "db:migrate:prod": "wrangler d1 migrations apply scoloane_finance",
+    "db:console:local": "wrangler d1 execute scoloane_finance --local",
+    "db:console:prod": "wrangler d1 execute scoloane_finance",
     "db:reset": "rm -rf .wrangler/state/v3/d1 && npm run db:migrate:local"
   },
   "dependencies": {

@@ -1,10 +1,13 @@
 // ============================================================================
 // Logique frontend de l'espace PERCEPTEUR
+// Vue en 2 étapes : cartes KPI par classe -> clic -> détail (registre / dettes)
 // ============================================================================
 let currentUser = null
 let currentSchool = null
 let myClasses = []
 let trimesters = []
+let currentPerceptionClass = null // { id, name }
+let currentDebtsClass = null // { id, name }
 
 async function init() {
   const data = await guardAuth(['percepteur'])
@@ -13,7 +16,7 @@ async function init() {
   currentSchool = data.school
   document.getElementById('user-info').innerHTML = `<i class="fas fa-user-circle mr-1"></i>${escapeHtml(data.user.name)}`
   document.getElementById('school-name-label').textContent = data.school ? data.school.name : 'École'
-  document.getElementById('perc-date').value = todayStr()
+  document.getElementById('perc-summary-date').value = todayStr()
 
   setupTabs()
 
@@ -25,9 +28,9 @@ async function init() {
   populateSelectors()
 
   if (myClasses.length === 0) {
-    document.getElementById('registre-tbody').innerHTML = '<tr><td colspan="6" class="text-center text-slate-400 py-6">Aucune classe ne vous est affectée. Contactez l\'administrateur de votre école.</td></tr>'
+    document.getElementById('perception-classes-grid').innerHTML = '<p class="text-slate-400 text-sm col-span-full text-center py-6">Aucune classe ne vous est affectée. Contactez l\'administrateur de votre école.</p>'
   } else {
-    await loadRegistre()
+    await loadPerceptionClasses()
   }
 }
 
@@ -38,22 +41,75 @@ function setupTabs() {
       link.classList.add('active')
       document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'))
       document.getElementById('tab-' + link.dataset.tab).classList.remove('hidden')
-      if (link.dataset.tab === 'debts') loadDebts()
+      if (link.dataset.tab === 'perception') {
+        currentPerceptionClass = null
+        document.getElementById('perception-detail-view').classList.add('hidden')
+        document.getElementById('perception-classes-view').classList.remove('hidden')
+        loadPerceptionClasses()
+      }
+      if (link.dataset.tab === 'debts') {
+        currentDebtsClass = null
+        document.getElementById('debts-detail-view').classList.add('hidden')
+        document.getElementById('debts-classes-view').classList.remove('hidden')
+        loadDebtsClasses()
+      }
     })
   })
 }
 
 function populateSelectors() {
-  const classOptions = myClasses.map(cl => `<option value="${cl.id}">${escapeHtml(cl.name)}</option>`).join('')
-  document.getElementById('perc-class').innerHTML = classOptions
-  document.getElementById('debt-class').innerHTML = classOptions
   const trimOptions = trimesters.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')
+  document.getElementById('perc-summary-trimester').innerHTML = trimOptions
   document.getElementById('perc-trimester').innerHTML = trimOptions
-  document.getElementById('debt-trimester').innerHTML = trimOptions
+  document.getElementById('debt-summary-trimester').innerHTML = trimOptions
 }
 
+// ---------------------------------------------------------------------------
+// PERCEPTION : vue 1 (cartes KPI par classe)
+// ---------------------------------------------------------------------------
+async function loadPerceptionClasses() {
+  const trimesterId = document.getElementById('perc-summary-trimester').value
+  const date = document.getElementById('perc-summary-date').value || todayStr()
+  if (!trimesterId) return
+  const data = await Api.get(`/api/perception/registre-summary?date=${date}&trimester_id=${trimesterId}`)
+
+  document.getElementById('perception-classes-grid').innerHTML = data.classes.map(cl => `
+    <div onclick="openPerceptionClass(${cl.class_id}, '${escapeHtml(cl.class_name)}')" class="section-card cursor-pointer hover:shadow-md hover:border-blue-300 transition">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold text-slate-800">${escapeHtml(cl.class_name)}</h3>
+        <span class="badge badge-blue">${escapeHtml(cl.level || '—')}</span>
+      </div>
+      <div class="grid grid-cols-2 gap-2 text-center">
+        <div class="bg-slate-50 rounded-lg p-2"><p class="text-xs text-slate-500">Ont payé</p><p class="font-bold text-sm text-slate-800">${cl.paid_count}/${cl.students_count}</p></div>
+        <div class="bg-slate-50 rounded-lg p-2"><p class="text-xs text-slate-500">Perçu</p><p class="font-bold text-sm text-green-600">${fmtMoney(cl.total_collected, currentSchool?.currency)}</p></div>
+      </div>
+      <p class="text-xs text-blue-600 font-semibold mt-3 text-right">Ouvrir <i class="fas fa-arrow-right ml-1"></i></p>
+    </div>`).join('') || '<p class="text-slate-400 text-sm col-span-full text-center py-6">Aucune classe ne vous est affectée</p>'
+}
+
+function openPerceptionClass(classId, className) {
+  currentPerceptionClass = { id: classId, name: className }
+  document.getElementById('perception-detail-title').textContent = className
+  document.getElementById('perc-trimester').value = document.getElementById('perc-summary-trimester').value
+  document.getElementById('perc-date').value = document.getElementById('perc-summary-date').value || todayStr()
+  document.getElementById('perception-classes-view').classList.add('hidden')
+  document.getElementById('perception-detail-view').classList.remove('hidden')
+  loadRegistre()
+}
+
+function closePerceptionDetail() {
+  currentPerceptionClass = null
+  document.getElementById('perception-detail-view').classList.add('hidden')
+  document.getElementById('perception-classes-view').classList.remove('hidden')
+  loadPerceptionClasses()
+}
+
+// ---------------------------------------------------------------------------
+// PERCEPTION : vue 2 (détail / registre journalier d'une classe)
+// ---------------------------------------------------------------------------
 async function loadRegistre() {
-  const classId = document.getElementById('perc-class').value
+  if (!currentPerceptionClass) return
+  const classId = currentPerceptionClass.id
   const trimesterId = document.getElementById('perc-trimester').value
   const date = document.getElementById('perc-date').value || todayStr()
   if (!classId || !trimesterId) return
@@ -70,14 +126,13 @@ async function loadRegistre() {
     <tr>
       <td>${idx + 1}</td>
       <td class="font-medium">${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}</td>
-      <td>${escapeHtml(s.class_name)}</td>
       <td>${s.montant_jour ? fmtMoney(s.montant_jour, currentSchool?.currency) : '<span class="text-slate-400">—</span>'}</td>
       <td>${s.receipt_number ? `<span class="badge badge-green">${escapeHtml(s.receipt_number)}</span>${s.payments_count_today > 1 ? ` <span class="badge badge-blue">x${s.payments_count_today}</span>` : ''}` : '—'}</td>
       <td class="space-x-2 whitespace-nowrap">
         ${s.payment_id ? `<button onclick="printReceipt(${s.payment_id})" class="text-blue-600 hover:underline text-xs font-semibold"><i class="fas fa-print"></i> Reçu</button>` : ''}
         <button onclick="showPayModal(${s.id}, '${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}', ${trimesterId})" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-semibold"><i class="fas fa-hand-holding-dollar mr-1"></i>Percevoir</button>
       </td>
-    </tr>`).join('') || '<tr><td colspan="6" class="text-center text-slate-400 py-6">Aucun élève dans cette classe</td></tr>'
+    </tr>`).join('') || '<tr><td colspan="5" class="text-center text-slate-400 py-6">Aucun élève dans cette classe</td></tr>'
 }
 
 async function showPayModal(studentId, studentName, trimesterId) {
@@ -120,16 +175,56 @@ function printReceipt(paymentId) {
 }
 
 function printAllReceipts() {
-  const classId = document.getElementById('perc-class').value
+  if (!currentPerceptionClass) return
   const date = document.getElementById('perc-date').value || todayStr()
-  if (!classId) return
-  window.open(`/static/receipts-batch.html?class_id=${classId}&date=${date}`, '_blank')
+  window.open(`/static/receipts-batch.html?class_id=${currentPerceptionClass.id}&date=${date}`, '_blank')
 }
 
+// ---------------------------------------------------------------------------
+// DETTES : vue 1 (cartes KPI par classe)
+// ---------------------------------------------------------------------------
+async function loadDebtsClasses() {
+  const trimesterId = document.getElementById('debt-summary-trimester').value
+  if (!trimesterId) return
+  const data = await Api.get(`/api/perception/debts-summary?trimester_id=${trimesterId}`)
+
+  document.getElementById('debts-classes-grid').innerHTML = data.classes.map(cl => `
+    <div onclick="openDebtsClass(${cl.class_id}, '${escapeHtml(cl.class_name)}')" class="section-card cursor-pointer hover:shadow-md hover:border-blue-300 transition">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold text-slate-800">${escapeHtml(cl.class_name)}</h3>
+        <span class="badge badge-blue">${escapeHtml(cl.level || '—')}</span>
+      </div>
+      <div class="grid grid-cols-2 gap-2 text-center">
+        <div class="bg-slate-50 rounded-lg p-2"><p class="text-xs text-slate-500">Endettés</p><p class="font-bold text-sm ${cl.debtors_count > 0 ? 'text-red-600' : 'text-green-600'}">${cl.debtors_count}</p></div>
+        <div class="bg-slate-50 rounded-lg p-2"><p class="text-xs text-slate-500">Total dette</p><p class="font-bold text-sm text-red-600">${fmtMoney(cl.total_debt, currentSchool?.currency)}</p></div>
+      </div>
+      <p class="text-xs text-blue-600 font-semibold mt-3 text-right">Ouvrir <i class="fas fa-arrow-right ml-1"></i></p>
+    </div>`).join('') || '<p class="text-slate-400 text-sm col-span-full text-center py-6">Aucune classe ne vous est affectée</p>'
+}
+
+function openDebtsClass(classId, className) {
+  currentDebtsClass = { id: classId, name: className }
+  document.getElementById('debts-detail-title').textContent = className
+  document.getElementById('debts-classes-view').classList.add('hidden')
+  document.getElementById('debts-detail-view').classList.remove('hidden')
+  loadDebts()
+}
+
+function closeDebtsDetail() {
+  currentDebtsClass = null
+  document.getElementById('debts-detail-view').classList.add('hidden')
+  document.getElementById('debts-classes-view').classList.remove('hidden')
+  loadDebtsClasses()
+}
+
+// ---------------------------------------------------------------------------
+// DETTES : vue 2 (détail des dettes d'une classe)
+// ---------------------------------------------------------------------------
 async function loadDebts() {
-  const classId = document.getElementById('debt-class').value
-  const trimesterId = document.getElementById('debt-trimester').value
-  if (!classId || !trimesterId) return
+  if (!currentDebtsClass) return
+  const classId = currentDebtsClass.id
+  const trimesterId = document.getElementById('debt-summary-trimester').value
+  if (!trimesterId) return
   const data = await Api.get(`/api/perception/debts?trimester_id=${trimesterId}&class_id=${classId}`)
 
   document.getElementById('debts-summary').innerHTML = `
@@ -140,11 +235,10 @@ async function loadDebts() {
   document.getElementById('debts-tbody').innerHTML = data.debts.map(d => `
     <tr>
       <td class="font-medium">${escapeHtml(d.nom)} ${escapeHtml(d.post_nom)}</td>
-      <td>${escapeHtml(d.class_name)}</td>
       <td>${fmtMoney(d.fee_amount, currentSchool?.currency)}</td>
       <td class="text-green-600">${fmtMoney(d.total_paid, currentSchool?.currency)}</td>
       <td class="text-red-600 font-semibold">${fmtMoney(d.balance, currentSchool?.currency)}</td>
-    </tr>`).join('') || '<tr><td colspan="5" class="text-center text-slate-400 py-6">Aucune dette 🎉</td></tr>'
+    </tr>`).join('') || '<tr><td colspan="4" class="text-center text-slate-400 py-6">Aucune dette 🎉</td></tr>'
 }
 
 init()

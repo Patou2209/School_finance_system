@@ -33,40 +33,69 @@
   </aside>
 
   <main class="flex-1 ml-64 p-8">
-    <!-- PERCEPTION -->
+    <!-- PERCEPTION : vue 1 = cartes KPI par classe -->
     <section id="tab-perception">
-      <div class="mb-6"><h1 class="text-2xl font-bold text-slate-800">Registre de perception journalière</h1><p class="text-slate-500 text-sm">Enregistrez les paiements des élèves de vos classes</p></div>
-      <div class="section-card mb-6">
-        <div class="flex flex-wrap gap-3 items-end">
-          <div><label class="text-xs font-medium text-slate-600 block mb-1">Classe</label><select id="perc-class" class="px-3 py-2 border rounded-lg text-sm w-48"></select></div>
-          <div><label class="text-xs font-medium text-slate-600 block mb-1">Trimestre</label><select id="perc-trimester" class="px-3 py-2 border rounded-lg text-sm w-44"></select></div>
-          <div><label class="text-xs font-medium text-slate-600 block mb-1">Jour</label><input type="date" id="perc-date" class="px-3 py-2 border rounded-lg text-sm"></div>
-          <button onclick="loadRegistre()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-search mr-2"></i>Afficher</button>
-          <button onclick="printAllReceipts()" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-print mr-2"></i>Imprimer tous les reçus du jour</button>
+      <div id="perception-classes-view">
+        <div class="mb-6"><h1 class="text-2xl font-bold text-slate-800">Registre de perception journalière</h1><p class="text-slate-500 text-sm">Sélectionnez une de vos classes pour enregistrer les paiements</p></div>
+        <div class="section-card mb-6">
+          <div class="flex flex-wrap gap-3 items-end">
+            <div><label class="text-xs font-medium text-slate-600 block mb-1">Trimestre</label><select id="perc-summary-trimester" class="px-3 py-2 border rounded-lg text-sm w-44"></select></div>
+            <div><label class="text-xs font-medium text-slate-600 block mb-1">Jour</label><input type="date" id="perc-summary-date" class="px-3 py-2 border rounded-lg text-sm"></div>
+            <button onclick="loadPerceptionClasses()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-search mr-2"></i>Afficher</button>
+          </div>
         </div>
+        <div id="perception-classes-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
       </div>
-      <div id="registre-summary" class="grid grid-cols-3 gap-4 mb-4"></div>
-      <div class="section-card overflow-x-auto">
-        <table class="data-table">
-          <thead><tr><th>N°</th><th>Nom et Post-nom</th><th>Classe</th><th>Montant du jour</th><th>Reçu</th><th>Action</th></tr></thead>
-          <tbody id="registre-tbody"></tbody>
-        </table>
+
+      <!-- vue 2 = détail d'une classe (registre + impression) -->
+      <div id="perception-detail-view" class="hidden">
+        <div class="mb-6">
+          <button onclick="closePerceptionDetail()" class="text-blue-600 hover:underline text-sm font-semibold mb-2"><i class="fas fa-arrow-left mr-1"></i>Retour aux classes</button>
+          <h1 id="perception-detail-title" class="text-2xl font-bold text-slate-800">Classe</h1>
+          <p class="text-slate-500 text-sm">Registre de perception journalière</p>
+        </div>
+        <div class="section-card mb-6">
+          <div class="flex flex-wrap gap-3 items-end">
+            <div><label class="text-xs font-medium text-slate-600 block mb-1">Trimestre</label><select id="perc-trimester" class="px-3 py-2 border rounded-lg text-sm w-44"></select></div>
+            <div><label class="text-xs font-medium text-slate-600 block mb-1">Jour</label><input type="date" id="perc-date" class="px-3 py-2 border rounded-lg text-sm"></div>
+            <button onclick="loadRegistre()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-search mr-2"></i>Afficher</button>
+            <button onclick="printAllReceipts()" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-print mr-2"></i>Imprimer tous les reçus du jour</button>
+          </div>
+        </div>
+        <div id="registre-summary" class="grid grid-cols-3 gap-4 mb-4"></div>
+        <div class="section-card overflow-x-auto">
+          <table class="data-table">
+            <thead><tr><th>N°</th><th>Nom et Post-nom</th><th>Montant du jour</th><th>Reçu</th><th>Action</th></tr></thead>
+            <tbody id="registre-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
-    <!-- DEBTS -->
+    <!-- DEBTS : vue 1 = cartes KPI par classe -->
     <section id="tab-debts" class="hidden">
-      <div class="mb-6"><h1 class="text-2xl font-bold text-slate-800">Listes des dettes</h1><p class="text-slate-500 text-sm">Élèves de vos classes n'ayant pas soldé leurs frais</p></div>
-      <div class="section-card mb-6">
-        <div class="flex flex-wrap gap-3 items-end">
-          <div><label class="text-xs font-medium text-slate-600 block mb-1">Classe</label><select id="debt-class" class="px-3 py-2 border rounded-lg text-sm w-48"></select></div>
-          <div><label class="text-xs font-medium text-slate-600 block mb-1">Trimestre</label><select id="debt-trimester" class="px-3 py-2 border rounded-lg text-sm w-44"></select></div>
-          <button onclick="loadDebts()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-search mr-2"></i>Afficher</button>
+      <div id="debts-classes-view">
+        <div class="mb-6"><h1 class="text-2xl font-bold text-slate-800">Listes des dettes</h1><p class="text-slate-500 text-sm">Sélectionnez une de vos classes pour voir ses élèves endettés</p></div>
+        <div class="section-card mb-6">
+          <div class="flex flex-wrap gap-3 items-end">
+            <div><label class="text-xs font-medium text-slate-600 block mb-1">Trimestre</label><select id="debt-summary-trimester" class="px-3 py-2 border rounded-lg text-sm w-44"></select></div>
+            <button onclick="loadDebtsClasses()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-search mr-2"></i>Afficher</button>
+          </div>
         </div>
+        <div id="debts-classes-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
       </div>
-      <div id="debts-summary" class="grid grid-cols-2 gap-4 mb-4"></div>
-      <div class="section-card overflow-x-auto">
-        <table class="data-table"><thead><tr><th>Nom et Post-nom</th><th>Classe</th><th>Frais fixé</th><th>Payé</th><th>Dette restante</th></tr></thead><tbody id="debts-tbody"></tbody></table>
+
+      <!-- vue 2 = détail des dettes d'une classe -->
+      <div id="debts-detail-view" class="hidden">
+        <div class="mb-6">
+          <button onclick="closeDebtsDetail()" class="text-blue-600 hover:underline text-sm font-semibold mb-2"><i class="fas fa-arrow-left mr-1"></i>Retour aux classes</button>
+          <h1 id="debts-detail-title" class="text-2xl font-bold text-slate-800">Classe</h1>
+          <p class="text-slate-500 text-sm">Élèves n'ayant pas soldé leurs frais</p>
+        </div>
+        <div id="debts-summary" class="grid grid-cols-2 gap-4 mb-4"></div>
+        <div class="section-card overflow-x-auto">
+          <table class="data-table"><thead><tr><th>Nom et Post-nom</th><th>Frais fixé</th><th>Payé</th><th>Dette restante</th></tr></thead><tbody id="debts-tbody"></tbody></table>
+        </div>
       </div>
     </section>
   </main>

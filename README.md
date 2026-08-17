@@ -173,12 +173,22 @@ curl http://localhost:3000/api/bootstrap/status
 ```
 
 ## 9. Déploiement
-Base D1 nommée `webapp-production` (binding `DB`) déclarée dans `wrangler.jsonc`. Avant le premier déploiement en production :
+Base D1 nommée `scoloane_finance` (binding `DB`) déclarée dans `wrangler.jsonc`, déployée sur Cloudflare Pages (`school-finance-system.pages.dev`) via l'intégration GitHub. Avant le premier déploiement en production :
 ```bash
-npx wrangler d1 create webapp-production   # copier le database_id retourné dans wrangler.jsonc
-npx wrangler d1 migrations apply webapp-production   # sur la base distante
+npx wrangler d1 create scoloane_finance   # copier le database_id retourné dans wrangler.jsonc
+npx wrangler d1 migrations apply scoloane_finance   # sur la base distante
 npm run deploy
 ```
+
+## 11. Perception & Dettes — vue par classe (KPI cards)
+Les onglets **Perception journalière** et **Listes des dettes** (espaces admin et percepteur) affichent désormais une vue en deux temps au lieu d'un tableau global :
+1. **Vue résumé** : une carte KPI par classe (élèves ayant payé / total perçu du jour pour Perception ; nb élèves endettés / dette totale pour Dettes).
+2. **Vue détail** (après clic sur une carte) : la liste des élèves de cette classe uniquement, avec le bouton **Percevoir** (Perception) et le bouton **Imprimer tous les reçus du jour** (déplacé ici, visible seulement dans le détail d'une classe). Un bouton "Retour aux classes" permet de revenir à la vue résumé.
+
+Nouveaux endpoints backend (`src/routes/perception.ts`) :
+- `GET /api/perception/registre-summary?date=&trimester_id=` — KPI par classe pour la Perception.
+- `GET /api/perception/debts-summary?trimester_id=` — KPI par classe pour les Dettes.
+Les deux respectent le même filtrage par rôle que les endpoints existants (`admin` voit toutes les classes de l'école, `percepteur` seulement ses classes affectées via `class_percepteurs`).
 
 ## 10. Sécurité
 - Mots de passe hachés avec PBKDF2-SHA256 (100 000 itérations, sel aléatoire par utilisateur).
