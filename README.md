@@ -173,10 +173,10 @@ curl http://localhost:3000/api/bootstrap/status
 ```
 
 ## 9. Déploiement
-Base D1 nommée `scoloane_finance` (binding `DB`) déclarée dans `wrangler.jsonc`, déployée sur Cloudflare Pages (`school-finance-system.pages.dev`) via l'intégration GitHub. Avant le premier déploiement en production :
+Base D1 nommée `finance_app` (binding `DB`) déclarée dans `wrangler.jsonc`, déployée sur Cloudflare Pages (`school-finance-system.pages.dev`) via l'intégration GitHub. Avant le premier déploiement en production :
 ```bash
-npx wrangler d1 create scoloane_finance   # copier le database_id retourné dans wrangler.jsonc
-npx wrangler d1 migrations apply scoloane_finance   # sur la base distante
+npx wrangler d1 create finance_app   # copier le database_id retourné dans wrangler.jsonc
+npx wrangler d1 migrations apply finance_app   # sur la base distante
 npm run deploy
 ```
 

@@ -9,8 +9,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "scoloane_finance",
-      "database_id": "31087bf1-0b8b-4ea7-9938-b6563a231efc"
+      "database_name": "finance_app",
+      "database_id": "82200d2f-22f4-402e-946d-6603983afb94"
     }
   ]
 }
