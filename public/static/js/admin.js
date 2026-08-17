@@ -279,7 +279,7 @@ async function viewClassDetail(classId) {
   } catch (err) { toast(err.message, 'error') }
 }
 
-const CLASS_ORDINALS = ['1ère', '2ème', '3ème', '4ème', '5ème', '6ème']
+const CLASS_ORDINALS = ['1ère', '2ème', '3ème', '4ème', '5ème', '6ème', '7ème','8ème']
 const CLASS_LEVELS = ['CTEB', 'Humanitaire', 'Primaire']
 
 function showCreateClassModal() {
