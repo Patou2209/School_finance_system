@@ -51,8 +51,7 @@ function render(data) {
 
   document.getElementById('receipt-container').innerHTML = `
     <div class="text-center mb-3">
-      ${school.logo_url ? `<img src="${escapeHtml(school.logo_url)}" class="h-12 mx-auto mb-1">` : '<i class="fas fa-school text-3xl text-blue-600"></i>'}
-      <h1 class="font-bold text-base uppercase leading-tight mt-1">${escapeHtml(school.name)}</h1>
+      <h1 class="font-bold text-base uppercase leading-tight">${escapeHtml(school.name)}</h1>
       ${school.address ? `<p class="text-xs text-slate-500">${escapeHtml(school.address)}</p>` : ''}
       ${school.phone ? `<p class="text-xs text-slate-500">Tél: ${escapeHtml(school.phone)}</p>` : ''}
     </div>
@@ -66,8 +65,7 @@ function render(data) {
       <tr><td class="py-1 text-slate-500">Élève</td><td class="py-1 font-semibold">: ${escapeHtml(payment.nom)} ${escapeHtml(payment.post_nom)} ${escapeHtml(payment.prenom || '')}</td></tr>
       <tr><td class="py-1 text-slate-500">Classe</td><td class="py-1 font-semibold">: ${escapeHtml(payment.class_name)}</td></tr>
       <tr><td class="py-1 text-slate-500">Trimestre</td><td class="py-1 font-semibold">: ${escapeHtml(payment.trimester_name)}</td></tr>
-      <tr><td class="py-1 text-slate-500">Jour</td><td class="py-1 font-semibold capitalize">: ${jour}</td></tr>
-      <tr><td class="py-1 text-slate-500">Date</td><td class="py-1 font-semibold">: ${fmtDate(payment.date_paiement)}</td></tr>
+      <tr><td class="py-1 text-slate-500">Jour et date</td><td class="py-1 font-semibold capitalize">: ${jour}, ${fmtDate(payment.date_paiement)}</td></tr>
     </table>
 
     <div class="border border-slate-300 rounded-lg p-3 mb-3 space-y-1.5">

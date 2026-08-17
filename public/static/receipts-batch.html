@@ -9,13 +9,46 @@
 <link href="/static/css/style.css" rel="stylesheet">
 <style>
   body { background: #e2e8f0; }
-  .receipt-print-area { width: 380px; margin: 0 auto 24px auto; }
-  .receipt-page { page-break-after: always; }
-  .receipt-page:last-child { page-break-after: auto; }
+  /* Aperçu écran : mêmes proportions que la grille d'impression (2 colonnes x 4 lignes / page A4 portrait) */
+  .receipts-page {
+    background: #fff;
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto 24px auto;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    gap: 0;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  }
+  .receipt-cell {
+    border: 1px dashed #94a3b8;
+    padding: 3mm 4mm;
+    font-size: 8.2px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .receipt-cell.empty { border-style: dotted; opacity: 0.3; }
+  .receipt-cell h1 { font-size: 10px; }
+  .receipt-cell .receipt-title { font-size: 9px; }
+  .receipt-cell table td { padding: 0.5px 0; }
+  .receipt-cell .amount-box { padding: 2mm; }
+  .receipt-cell .sign-line { height: 5mm; }
+
   @media print {
-    @page { size: 100mm 150mm; margin: 4mm; }
+    @page { size: A4 portrait; margin: 6mm; }
     body { background: #fff; }
     .no-print { display: none !important; }
+    .receipts-page {
+      width: auto;
+      min-height: 0;
+      height: 285mm;
+      box-shadow: none;
+      margin: 0;
+      page-break-after: always;
+    }
+    .receipts-page:last-child { page-break-after: auto; }
   }
 </style>
 </head>
@@ -33,6 +66,8 @@
 
 <script src="/static/js/api.js"></script>
 <script>
+const RECEIPTS_PER_PAGE = 8
+
 async function loadReceipts() {
   const params = new URLSearchParams(window.location.search)
   const classId = params.get('class_id')
@@ -53,50 +88,44 @@ function renderOneReceipt(school, payment, fee_amount, total_paid, balance) {
   const dateObj = new Date(payment.date_paiement + 'T00:00:00')
   const jour = dateObj.toLocaleDateString('fr-FR', { weekday: 'long' })
   return `
-    <div class="receipt-page">
-    <div class="receipt-print-area bg-white border-2 border-dashed border-slate-400 rounded-lg p-5 text-sm">
-      <div class="text-center mb-3">
-        ${school.logo_url ? `<img src="${escapeHtml(school.logo_url)}" class="h-12 mx-auto mb-1">` : '<i class="fas fa-school text-3xl text-blue-600"></i>'}
-        <h1 class="font-bold text-base uppercase leading-tight mt-1">${escapeHtml(school.name)}</h1>
-        ${school.address ? `<p class="text-xs text-slate-500">${escapeHtml(school.address)}</p>` : ''}
-        ${school.phone ? `<p class="text-xs text-slate-500">Tél: ${escapeHtml(school.phone)}</p>` : ''}
+    <div class="receipt-cell">
+      <div class="text-center mb-1">
+        <h1 class="font-bold uppercase leading-tight">${escapeHtml(school.name)}</h1>
+        ${school.address ? `<p class="text-slate-500" style="font-size:6.5px">${escapeHtml(school.address)}</p>` : ''}
+        ${school.phone ? `<p class="text-slate-500" style="font-size:6.5px">Tél: ${escapeHtml(school.phone)}</p>` : ''}
       </div>
-      <div class="text-center border-y-2 border-slate-800 py-1.5 mb-3">
-        <p class="font-bold text-sm tracking-wide">REÇU DE PAIEMENT</p>
-        <p class="text-xs text-slate-500">N° ${escapeHtml(payment.receipt_number)}</p>
+      <div class="text-center border-y border-slate-800 py-0.5 mb-1">
+        <p class="receipt-title font-bold tracking-wide">REÇU DE PAIEMENT</p>
+        <p class="text-slate-500" style="font-size:6.5px">N° ${escapeHtml(payment.receipt_number)}</p>
       </div>
 
-      <table class="w-full text-xs mb-3">
-        <tr><td class="py-1 text-slate-500 w-28">Année scolaire</td><td class="py-1 font-semibold">: ${escapeHtml(payment.year_label)}</td></tr>
-        <tr><td class="py-1 text-slate-500">Élève</td><td class="py-1 font-semibold">: ${escapeHtml(payment.nom)} ${escapeHtml(payment.post_nom)} ${escapeHtml(payment.prenom || '')}</td></tr>
-        <tr><td class="py-1 text-slate-500">Classe</td><td class="py-1 font-semibold">: ${escapeHtml(payment.class_name)}</td></tr>
-        <tr><td class="py-1 text-slate-500">Trimestre</td><td class="py-1 font-semibold">: ${escapeHtml(payment.trimester_name)}</td></tr>
-        <tr><td class="py-1 text-slate-500">Jour</td><td class="py-1 font-semibold capitalize">: ${jour}</td></tr>
-        <tr><td class="py-1 text-slate-500">Date</td><td class="py-1 font-semibold">: ${fmtDate(payment.date_paiement)}</td></tr>
+      <table class="w-full mb-1">
+        <tr><td class="text-slate-500" style="width:32%">Année scolaire</td><td class="font-semibold">: ${escapeHtml(payment.year_label)}</td></tr>
+        <tr><td class="text-slate-500">Élève</td><td class="font-semibold">: ${escapeHtml(payment.nom)} ${escapeHtml(payment.post_nom)} ${escapeHtml(payment.prenom || '')}</td></tr>
+        <tr><td class="text-slate-500">Classe</td><td class="font-semibold">: ${escapeHtml(payment.class_name)}</td></tr>
+        <tr><td class="text-slate-500">Trimestre</td><td class="font-semibold">: ${escapeHtml(payment.trimester_name)}</td></tr>
+        <tr><td class="text-slate-500">Jour et date</td><td class="font-semibold capitalize">: ${jour}, ${fmtDate(payment.date_paiement)}</td></tr>
       </table>
 
-      <div class="border border-slate-300 rounded-lg p-3 mb-3 space-y-1.5">
-        <div class="flex justify-between text-xs"><span class="text-slate-500">Frais du trimestre</span><span class="font-semibold">${fmtMoney(fee_amount, school.currency)}</span></div>
-        <div class="flex justify-between text-sm border-t pt-1.5"><span class="font-bold">Montant payé ce jour</span><span class="font-bold text-green-700">${fmtMoney(payment.montant, school.currency)}</span></div>
-        <div class="flex justify-between text-xs"><span class="text-slate-500">Total payé (cumul trimestre)</span><span class="font-semibold">${fmtMoney(total_paid, school.currency)}</span></div>
-        <div class="flex justify-between text-sm border-t pt-1.5"><span class="font-bold">Dette restante</span><span class="font-bold ${balance > 0 ? 'text-red-700' : 'text-green-700'}">${balance > 0 ? fmtMoney(balance, school.currency) : 'SOLDÉ'}</span></div>
+      <div class="amount-box border border-slate-300 rounded mb-1" style="line-height:1.5">
+        <div class="flex justify-between"><span class="text-slate-500">Frais du trimestre</span><span class="font-semibold">${fmtMoney(fee_amount, school.currency)}</span></div>
+        <div class="flex justify-between font-bold border-t border-slate-200"><span>Montant payé ce jour</span><span class="text-green-700">${fmtMoney(payment.montant, school.currency)}</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">Total payé (cumul)</span><span class="font-semibold">${fmtMoney(total_paid, school.currency)}</span></div>
+        <div class="flex justify-between font-bold border-t border-slate-200"><span>Dette restante</span><span class="${balance > 0 ? 'text-red-700' : 'text-green-700'}">${balance > 0 ? fmtMoney(balance, school.currency) : 'SOLDÉ'}</span></div>
       </div>
 
-      <p class="text-xs text-slate-500 mb-6">Perçu par : <span class="font-semibold text-slate-700">${escapeHtml(payment.percepteur_name)}</span></p>
+      <p class="text-slate-500 mb-1" style="font-size:6.5px">Perçu par : <span class="font-semibold text-slate-700">${escapeHtml(payment.percepteur_name)}</span></p>
 
-      <div class="grid grid-cols-2 gap-4 text-center text-xs mt-8">
+      <div class="grid grid-cols-2 gap-2 text-center mt-auto" style="font-size:6.5px">
         <div>
-          <div class="border-b border-slate-400 h-10"></div>
-          <p class="mt-1 text-slate-500">Sceau de l'école</p>
+          <div class="sign-line border-b border-slate-400"></div>
+          <p class="text-slate-500">Sceau de l'école</p>
         </div>
         <div>
-          <div class="border-b border-slate-400 h-10"></div>
-          <p class="mt-1 text-slate-500">Signature du percepteur</p>
+          <div class="sign-line border-b border-slate-400"></div>
+          <p class="text-slate-500">Signature percepteur</p>
         </div>
       </div>
-
-      <p class="text-center text-[10px] text-slate-400 mt-4">Document généré automatiquement — Plateforme de Gestion Financière Scolaire</p>
-    </div>
     </div>
   `
 }
@@ -108,9 +137,19 @@ function render(data) {
     document.getElementById('receipts-container').innerHTML = '<p class="text-center text-slate-500">Aucun paiement enregistré pour cette classe à cette date</p>'
     return
   }
-  document.getElementById('receipts-container').innerHTML = payments.map(p =>
-    renderOneReceipt(school, p, p.fee_amount, p.total_paid, p.balance)
-  ).join('')
+
+  const cells = payments.map(p => renderOneReceipt(school, p, p.fee_amount, p.total_paid, p.balance))
+
+  // Regroupe les reçus par page de 8 (grille 2 colonnes x 4 lignes, format A4 portrait)
+  let html = ''
+  for (let i = 0; i < cells.length; i += RECEIPTS_PER_PAGE) {
+    const pageCells = cells.slice(i, i + RECEIPTS_PER_PAGE)
+    while (pageCells.length < RECEIPTS_PER_PAGE) {
+      pageCells.push('<div class="receipt-cell empty"></div>')
+    }
+    html += `<div class="receipts-page">${pageCells.join('')}</div>`
+  }
+  document.getElementById('receipts-container').innerHTML = html
 }
 
 loadReceipts()

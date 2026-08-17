@@ -648,7 +648,7 @@ async function loadRegistre() {
   document.getElementById('registre-tbody').innerHTML = data.students.map((s, idx) => `
     <tr>
       <td>${idx + 1}</td>
-      <td class="font-medium">${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}</td>
+      <td class="font-medium"><button onclick="showStudentReceipts(${s.id}, '${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}', ${trimesterId})" class="hover:underline hover:text-blue-600 text-left">${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}</button></td>
       <td>${s.montant_jour ? fmtMoney(s.montant_jour, currentSchool?.currency) : '<span class="text-slate-400">—</span>'}</td>
       <td>${s.receipt_number ? `<span class="badge badge-green">${escapeHtml(s.receipt_number)}</span>${s.payments_count_today > 1 ? ` <span class="badge badge-blue">x${s.payments_count_today}</span>` : ''}` : '—'}</td>
       <td class="space-x-2 whitespace-nowrap">
@@ -659,6 +659,39 @@ async function loadRegistre() {
         <button onclick="showPayModal(${s.id}, '${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}', ${trimesterId})" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-semibold"><i class="fas fa-hand-holding-dollar mr-1"></i>Percevoir</button>
       </td>
     </tr>`).join('') || '<tr><td colspan="5" class="text-center text-slate-400 py-6">Aucun élève dans cette classe</td></tr>'
+}
+
+// Affiche la liste des paiements d'un élève (toutes dates) pour ce trimestre,
+// avec possibilité d'imprimer le reçu de n'importe lequel d'entre eux.
+async function showStudentReceipts(studentId, studentName, trimesterId) {
+  const situation = await Api.get(`/api/perception/student/${studentId}/situation?trimester_id=${trimesterId}`)
+  const rows = (situation.payments || []).map(p => `
+    <tr>
+      <td>${fmtDate(p.date_paiement)}</td>
+      <td>${fmtMoney(p.montant, currentSchool?.currency)}</td>
+      <td><span class="badge badge-green">${escapeHtml(p.receipt_number)}</span></td>
+      <td><button onclick="printReceipt(${p.id})" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs font-semibold"><i class="fas fa-print mr-1"></i>Imprimer le reçu</button></td>
+    </tr>`).join('') || '<tr><td colspan="4" class="text-center text-slate-400 py-6">Aucun paiement enregistré ce trimestre</td></tr>'
+
+  openModal(`
+    <div class="p-6">
+      <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fas fa-receipt mr-2 text-blue-600"></i>Paiements de ${escapeHtml(studentName)}</h3>
+      <p class="text-sm text-slate-500 mb-4">Sélectionnez un paiement pour imprimer son reçu</p>
+      <div class="grid grid-cols-3 gap-2 mb-4 text-center">
+        <div class="bg-slate-50 rounded-lg p-2"><p class="text-xs text-slate-500">Frais fixé</p><p class="font-bold text-sm">${fmtMoney(situation.fee_amount, currentSchool?.currency)}</p></div>
+        <div class="bg-slate-50 rounded-lg p-2"><p class="text-xs text-slate-500">Déjà payé</p><p class="font-bold text-sm text-green-600">${fmtMoney(situation.total_paid, currentSchool?.currency)}</p></div>
+        <div class="bg-slate-50 rounded-lg p-2"><p class="text-xs text-slate-500">Solde dû</p><p class="font-bold text-sm text-red-600">${fmtMoney(situation.balance, currentSchool?.currency)}</p></div>
+      </div>
+      <div class="overflow-x-auto max-h-80 overflow-y-auto">
+        <table class="data-table">
+          <thead><tr><th>Date</th><th>Montant</th><th>Reçu</th><th>Action</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="flex justify-end pt-4">
+        <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100">Fermer</button>
+      </div>
+    </div>`)
 }
 
 function printAllReceipts() {
