@@ -199,7 +199,10 @@
     <section id="tab-cashbook" class="hidden">
       <div class="flex items-center justify-between mb-6">
         <div><h1 class="text-2xl font-bold text-slate-800">Livre de caisse</h1><p class="text-slate-500 text-sm">Entrées, sorties et solde cumulé</p></div>
-        <button onclick="showAddCashbookModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold"><i class="fas fa-plus mr-2"></i>Nouvelle opération</button>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="printCashbook()" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow"><i class="fas fa-print mr-2"></i>Imprimer le livre de caisse</button>
+          <button onclick="showAddCashbookModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold"><i class="fas fa-plus mr-2"></i>Nouvelle opération</button>
+        </div>
       </div>
       <div class="section-card mb-4">
         <div class="flex flex-wrap gap-3 items-end">
@@ -212,7 +215,7 @@
       <div id="cashbook-summary" class="grid grid-cols-3 gap-4 mb-4"></div>
       <div class="section-card overflow-x-auto">
         <table class="data-table">
-          <thead><tr><th>Date</th><th>Code</th><th>Libellé</th><th>Réf.</th><th>Entrée</th><th>Sortie</th><th>Solde</th><th>Actions</th></tr></thead>
+          <thead class="cashbook-head"><tr><th><i class="fas fa-calendar-day mr-1.5"></i>Date</th><th><i class="fas fa-tag mr-1.5"></i>Code</th><th><i class="fas fa-align-left mr-1.5"></i>Libellé</th><th><i class="fas fa-hashtag mr-1.5"></i>Réf.</th><th class="text-right"><i class="fas fa-arrow-down mr-1.5 text-green-400"></i>Entrée</th><th class="text-right"><i class="fas fa-arrow-up mr-1.5 text-red-400"></i>Sortie</th><th class="text-right"><i class="fas fa-scale-balanced mr-1.5"></i>Solde</th><th>Actions</th></tr></thead>
           <tbody id="cashbook-tbody"></tbody>
         </table>
       </div>

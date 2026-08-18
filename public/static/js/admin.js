@@ -917,6 +917,17 @@ function clearCashbookFilter() {
   loadCashbook()
 }
 
+/** Ouvre la page d'impression A4 du livre de caisse (en respectant le filtre de période actif). */
+function printCashbook() {
+  const from = document.getElementById('cb-from').value
+  const to = document.getElementById('cb-to').value
+  const params = []
+  if (from) params.push(`from=${from}`)
+  if (to) params.push(`to=${to}`)
+  const url = '/print/cashbook.html' + (params.length ? '?' + params.join('&') : '')
+  window.open(url, '_blank')
+}
+
 async function showAddCashbookModal() {
   const { categories } = await Api.get('/api/admin/budget-categories')
   openModal(`

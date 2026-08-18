@@ -70,6 +70,10 @@ Reproduit le modèle papier (Image fournie) : colonnes **Date, Code (F/B/R/AUT),
 - Le **solde est calculé côté serveur, de façon cumulative**, dans l'ordre chronologique.
 - Chaque jour de perception génère **automatiquement une seule ligne agrégée "Frais scolaire"** (somme de tous les paiements du jour), exactement comme sur le registre papier où le total journalier du registre de perception est reporté globalement dans le livre de caisse. Cette ligne est marquée `is_auto=1`, non modifiable manuellement, et se resynchronise automatiquement à chaque nouveau paiement ou annulation du même jour.
 - Les autres opérations (dépenses, autres recettes) sont saisies manuellement par l'admin avec leur code de pièce justificative (F=Facture, B=Bon, R=Reçu, AUT=Autodéclaration) et leur référence (ex: `B01/25`, `F2260`).
+- **Impression professionnelle format A4** (`/print/cashbook.html`) : bouton **"Imprimer le livre de caisse"** dans l'espace admin → ouvre un aperçu A4 avec en-tête de l'école (logo, nom, code), période filtrée, cartes de synthèse (solde initial, total entrées, total sorties, solde final), tableau à en-têtes sombres très lisibles, ligne de solde initial reporté, ligne de totaux mise en évidence, légende des codes pièces et **zones de signatures** (Caissier/Percepteur + Chef d'Établissement). Le filtre de période actif (Du/Au) est automatiquement transmis à l'impression.
+
+### 3.2bis Page d'accueil publique
+Landing page moderne et responsive (`/static/index.html`) : **navbar fixe avec menu hamburger mobile**, section hero avec dégradés animés et aperçu flottant du livre de caisse, compteurs animés, grille de 6 fonctionnalités, section dédiée au livre de caisse imprimable, formulaire de connexion intégré (avec bootstrap du super admin) et footer complet.
 
 ### 3.3 Rapport financier (3 trimestres)
 Pour chaque trimestre : total attendu (frais fixés × effectifs), total perçu, taux de recouvrement, détail par classe, dépenses par catégorie, top 10 des débiteurs. Vue "année" comparant les 3 trimestres.

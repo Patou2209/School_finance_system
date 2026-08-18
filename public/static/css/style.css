@@ -75,6 +75,19 @@ table.data-table tfoot td {
   background: #f8fafc;
 }
 
+/* En-têtes du livre de caisse : sombres, très lisibles */
+table.data-table thead.cashbook-head th {
+  background: #1e293b;
+  color: #f1f5f9;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.75rem;
+  border-bottom: 3px solid #b45309;
+}
+table.data-table thead.cashbook-head th.text-right { text-align: right; }
+
 /* Badges */
 .badge { display:inline-flex; align-items:center; padding:0.15rem 0.6rem; border-radius:999px; font-size:0.72rem; font-weight:600; }
 .badge-green { background:#dcfce7; color:#166534; }
