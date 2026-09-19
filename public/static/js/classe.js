@@ -97,16 +97,75 @@ function renderOverview(meRes) {
 // ---------------------------------------------------------------------------
 // ELEVES (ajout, import, suppression) — propres à la classe connectée
 // ---------------------------------------------------------------------------
+let studentsCache = []
+
 async function loadStudents() {
   const { students } = await Api.get('/api/classe/students')
+  studentsCache = students
   document.getElementById('students-tbody').innerHTML = students.map(s => `
     <tr>
       <td class="font-medium">${escapeHtml(s.nom)}</td>
       <td>${escapeHtml(s.post_nom)}</td>
       <td>${escapeHtml(s.prenom || '—')}</td>
       <td>${s.sexe || '—'}</td>
-      <td><button onclick="deleteStudent(${s.id})" class="text-red-600 hover:underline text-xs font-semibold"><i class="fas fa-trash"></i></button></td>
-    </tr>`).join('') || '<tr><td colspan="5" class="text-center text-slate-400 py-6">Aucun élève</td></tr>'
+      <td>${categoryBadge(s.categorie)}</td>
+      <td class="space-x-2 whitespace-nowrap">
+        <button onclick="showEditStudentCategoryModal(${s.id}, '${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}', '${s.categorie || 'normal'}')" class="text-blue-600 hover:underline text-xs font-semibold"><i class="fas fa-tag"></i> Catégorie</button>
+        <button onclick="deleteStudent(${s.id})" class="text-red-600 hover:underline text-xs font-semibold"><i class="fas fa-trash"></i></button>
+      </td>
+    </tr>`).join('') || '<tr><td colspan="6" class="text-center text-slate-400 py-6">Aucun élève</td></tr>'
+}
+
+function showEditStudentCategoryModal(studentId, studentName, currentCat) {
+  openModal(`
+    <div class="p-6">
+      <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fas fa-tag mr-2 text-blue-600"></i>Catégorie de l'élève</h3>
+      <p class="text-sm text-slate-500 mb-4">${escapeHtml(studentName)}</p>
+      <form id="edit-cat-form" class="space-y-3">
+        <div><label class="text-xs font-medium text-slate-600">Catégorie *</label>
+          <select id="ec-categorie" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">${categoryOptions(currentCat)}</select>
+        </div>
+        <p class="text-xs text-slate-400">Le montant des frais appliqué à cet élève dépend de sa catégorie.</p>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100">Annuler</button>
+          <button type="submit" class="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">Enregistrer</button>
+        </div>
+      </form>
+    </div>`)
+  document.getElementById('edit-cat-form').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    try {
+      await Api.patch(`/api/classe/students/${studentId}`, { categorie: document.getElementById('ec-categorie').value })
+      toast('Catégorie mise à jour', 'success')
+      closeModal()
+      await loadStudents()
+    } catch (err) { toast(err.message, 'error') }
+  })
+}
+
+const STUDENTS_EXPORT_COLUMNS = [
+  { header: 'Nom', key: 'nom' }, { header: 'Post-nom', key: 'post_nom' }, { header: 'Prénom', key: 'prenom' },
+  { header: 'Sexe', key: 'sexe' }, { header: 'Catégorie', key: 'cat' }
+]
+
+function exportStudentsExcel() {
+  exportTableToExcel({
+    filename: `eleves_${myClass ? myClass.name.replace(/\s+/g, '_') : 'classe'}_${todayStr()}`,
+    sheetName: 'Élèves',
+    title: `Liste des élèves — ${myClass ? myClass.name : ''} — ${currentSchool ? currentSchool.name : ''}`,
+    columns: STUDENTS_EXPORT_COLUMNS,
+    rows: studentsCache.map(s => ({ ...s, prenom: s.prenom || '', sexe: s.sexe || '', cat: categoryLabel(s.categorie) }))
+  })
+}
+
+function exportStudentsPdf() {
+  exportTableToPdf({
+    filename: `eleves_${myClass ? myClass.name.replace(/\s+/g, '_') : 'classe'}_${todayStr()}`,
+    title: `Liste des élèves — ${myClass ? myClass.name : ''}`,
+    subtitle: `${currentSchool ? currentSchool.name : ''} — ${studentsCache.length} élève(s)`,
+    columns: STUDENTS_EXPORT_COLUMNS,
+    rows: studentsCache.map(s => ({ ...s, prenom: s.prenom || '', sexe: s.sexe || '', cat: categoryLabel(s.categorie) }))
+  })
 }
 
 function showCreateStudentModal() {
@@ -124,7 +183,12 @@ function showCreateStudentModal() {
             <select id="st-sexe" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"><option value="">—</option><option value="M">M</option><option value="F">F</option></select>
           </div>
         </div>
-        <div><label class="text-xs font-medium text-slate-600">Contact parent</label><input id="st-contact" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs font-medium text-slate-600">Catégorie *</label>
+            <select id="st-categorie" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">${categoryOptions('normal')}</select>
+          </div>
+          <div><label class="text-xs font-medium text-slate-600">Contact parent</label><input id="st-contact" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+        </div>
         <div class="flex justify-end gap-2 pt-3">
           <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100">Annuler</button>
           <button type="submit" class="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">Ajouter</button>
@@ -139,7 +203,8 @@ function showCreateStudentModal() {
         post_nom: document.getElementById('st-postnom').value,
         prenom: document.getElementById('st-prenom').value,
         sexe: document.getElementById('st-sexe').value,
-        parent_contact: document.getElementById('st-contact').value
+        parent_contact: document.getElementById('st-contact').value,
+        categorie: document.getElementById('st-categorie').value
       })
       toast('Élève ajouté', 'success')
       closeModal()
@@ -181,6 +246,11 @@ function showImportStudentsModal() {
         <div>
           <label class="text-xs font-medium text-slate-600">Fichier (.xlsx, .xls, .csv)</label>
           <input type="file" id="import-file" accept=".xlsx,.xls,.csv" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm bg-white">
+        </div>
+        <div>
+          <label class="text-xs font-medium text-slate-600">Catégorie des élèves importés *</label>
+          <select id="import-categorie" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">${categoryOptions('normal')}</select>
+          <p class="text-xs text-slate-400 mt-1">Tous les élèves de ce fichier seront enregistrés dans cette catégorie. Vous pourrez modifier la catégorie de chaque élève individuellement après l'import.</p>
         </div>
         <div id="import-preview" class="max-h-64 overflow-y-auto border rounded-lg hidden">
           <table class="data-table"><thead><tr><th>#</th><th>Nom et post-nom (fichier)</th><th>Nom</th><th>Post-nom</th></tr></thead><tbody id="import-preview-tbody"></tbody></table>
@@ -259,7 +329,8 @@ function renderImportPreview() {
 async function submitImportedStudents() {
   if (importedStudentsRows.length === 0) { toast('Aucun élève à importer', 'error'); return }
 
-  const students = importedStudentsRows.map(r => ({ nom: r.nom, post_nom: r.post_nom }))
+  const categorie = document.getElementById('import-categorie') ? document.getElementById('import-categorie').value : 'normal'
+  const students = importedStudentsRows.map(r => ({ nom: r.nom, post_nom: r.post_nom, categorie }))
 
   const btn = document.getElementById('import-submit-btn')
   btn.disabled = true
@@ -279,12 +350,15 @@ async function submitImportedStudents() {
 // ---------------------------------------------------------------------------
 // REGISTRE DE PERCEPTION (lecture seule)
 // ---------------------------------------------------------------------------
+let registreCache = null
+
 async function loadRegistre() {
   const trimesterId = document.getElementById('perc-trimester').value
   const date = document.getElementById('perc-date').value || todayStr()
   if (!trimesterId) return
 
   const data = await Api.get(`/api/classe/registre?date=${date}&trimester_id=${trimesterId}`)
+  registreCache = data
 
   document.getElementById('registre-summary').innerHTML = `
     <div class="stat-card"><p class="text-xs text-slate-500 mb-1">Élèves ayant payé ce jour</p><p class="text-xl font-bold text-slate-800">${data.count}</p></div>
@@ -296,9 +370,53 @@ async function loadRegistre() {
     <tr>
       <td>${idx + 1}</td>
       <td class="font-medium">${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}</td>
+      <td>${categoryBadge(s.categorie)}</td>
       <td>${s.montant_jour ? fmtMoney(s.montant_jour, currentSchool?.currency) : '<span class="text-slate-400">—</span>'}</td>
       <td>${s.receipt_number ? `<span class="badge badge-green">${escapeHtml(s.receipt_number)}</span>${s.payments_count_today > 1 ? ` <span class="badge badge-blue">x${s.payments_count_today}</span>` : ''}` : '—'}</td>
-    </tr>`).join('') || '<tr><td colspan="4" class="text-center text-slate-400 py-6">Aucun élève dans cette classe</td></tr>'
+    </tr>`).join('') || '<tr><td colspan="5" class="text-center text-slate-400 py-6">Aucun élève dans cette classe</td></tr>'
+}
+
+const REGISTRE_EXPORT_COLUMNS = [
+  { header: 'N°', key: 'num' },
+  { header: 'Nom et Post-nom', key: 'full_name' },
+  { header: 'Catégorie', key: 'cat' },
+  { header: 'Montant du jour', key: 'montant' },
+  { header: 'Reçu', key: 'receipt' }
+]
+
+function registreExportRows() {
+  if (!registreCache) return []
+  const rows = registreCache.students.map((s, i) => ({
+    num: i + 1,
+    full_name: `${s.nom} ${s.post_nom}`,
+    cat: categoryLabel(s.categorie),
+    montant: s.montant_jour ? fmtMoney(s.montant_jour, currentSchool?.currency) : '',
+    receipt: s.receipt_number || ''
+  }))
+  rows.push({ num: '', full_name: 'TOTAL DU JOUR', cat: '', montant: fmtMoney(registreCache.total, currentSchool?.currency), receipt: `${registreCache.count} paiement(s)` })
+  return rows
+}
+
+function exportRegistreExcel() {
+  if (!registreCache) return toast('Affichez d\'abord le registre', 'error')
+  exportTableToExcel({
+    filename: `registre_${myClass ? myClass.name.replace(/\s+/g, '_') : 'classe'}_${registreCache.date}`,
+    sheetName: 'Registre',
+    title: `Registre de perception — ${myClass ? myClass.name : ''} — ${fmtDate(registreCache.date)}`,
+    columns: REGISTRE_EXPORT_COLUMNS,
+    rows: registreExportRows()
+  })
+}
+
+function exportRegistrePdf() {
+  if (!registreCache) return toast('Affichez d\'abord le registre', 'error')
+  exportTableToPdf({
+    filename: `registre_${myClass ? myClass.name.replace(/\s+/g, '_') : 'classe'}_${registreCache.date}`,
+    title: `Registre de perception — ${myClass ? myClass.name : ''}`,
+    subtitle: `${currentSchool ? currentSchool.name : ''} — ${fmtDate(registreCache.date)}`,
+    columns: REGISTRE_EXPORT_COLUMNS,
+    rows: registreExportRows()
+  })
 }
 
 function printAllReceipts() {
@@ -310,10 +428,13 @@ function printAllReceipts() {
 // ---------------------------------------------------------------------------
 // DETTES
 // ---------------------------------------------------------------------------
+let debtsCache = null
+
 async function loadDebts() {
   const trimesterId = document.getElementById('debt-trimester').value
   if (!trimesterId) return
   const data = await Api.get(`/api/classe/debts?trimester_id=${trimesterId}`)
+  debtsCache = data
 
   document.getElementById('debts-summary').innerHTML = `
     <div class="stat-card"><p class="text-xs text-slate-500 mb-1">Élèves endettés</p><p class="text-xl font-bold text-red-600">${data.count}</p></div>
@@ -323,10 +444,54 @@ async function loadDebts() {
   document.getElementById('debts-tbody').innerHTML = data.debts.map(d => `
     <tr>
       <td class="font-medium">${escapeHtml(d.nom)} ${escapeHtml(d.post_nom)}</td>
+      <td>${categoryBadge(d.categorie)}</td>
       <td>${fmtMoney(d.fee_amount, currentSchool?.currency)}</td>
       <td class="text-green-600">${fmtMoney(d.total_paid, currentSchool?.currency)}</td>
       <td class="text-red-600 font-semibold">${fmtMoney(d.balance, currentSchool?.currency)}</td>
-    </tr>`).join('') || '<tr><td colspan="4" class="text-center text-slate-400 py-6">Aucune dette 🎉</td></tr>'
+    </tr>`).join('') || '<tr><td colspan="5" class="text-center text-slate-400 py-6">Aucune dette 🎉</td></tr>'
+}
+
+const DEBTS_EXPORT_COLUMNS = [
+  { header: 'Nom et Post-nom', key: 'full_name' },
+  { header: 'Catégorie', key: 'cat' },
+  { header: 'Frais fixé', key: 'fee' },
+  { header: 'Payé', key: 'paid' },
+  { header: 'Dette restante', key: 'balance' }
+]
+
+function debtsExportRows() {
+  if (!debtsCache) return []
+  const rows = debtsCache.debts.map(d => ({
+    full_name: `${d.nom} ${d.post_nom}`,
+    cat: categoryLabel(d.categorie),
+    fee: fmtMoney(d.fee_amount, currentSchool?.currency),
+    paid: fmtMoney(d.total_paid, currentSchool?.currency),
+    balance: fmtMoney(d.balance, currentSchool?.currency)
+  }))
+  rows.push({ full_name: 'TOTAL', cat: '', fee: '', paid: '', balance: fmtMoney(debtsCache.total_debt, currentSchool?.currency) })
+  return rows
+}
+
+function exportDebtsExcel() {
+  if (!debtsCache) return toast('Affichez d\'abord les dettes', 'error')
+  exportTableToExcel({
+    filename: `dettes_${myClass ? myClass.name.replace(/\s+/g, '_') : 'classe'}_${todayStr()}`,
+    sheetName: 'Dettes',
+    title: `Liste des dettes — ${myClass ? myClass.name : ''} — ${currentSchool ? currentSchool.name : ''}`,
+    columns: DEBTS_EXPORT_COLUMNS,
+    rows: debtsExportRows()
+  })
+}
+
+function exportDebtsPdf() {
+  if (!debtsCache) return toast('Affichez d\'abord les dettes', 'error')
+  exportTableToPdf({
+    filename: `dettes_${myClass ? myClass.name.replace(/\s+/g, '_') : 'classe'}_${todayStr()}`,
+    title: `Liste des dettes — ${myClass ? myClass.name : ''}`,
+    subtitle: `${currentSchool ? currentSchool.name : ''} — ${debtsCache.count} élève(s) endetté(s)`,
+    columns: DEBTS_EXPORT_COLUMNS,
+    rows: debtsExportRows()
+  })
 }
 
 async function loadFees() {
@@ -334,8 +499,9 @@ async function loadFees() {
   document.getElementById('fees-tbody').innerHTML = fee_structures.map(f => `
     <tr>
       <td class="font-medium">${escapeHtml(f.trimester_name)}</td>
+      <td>${categoryBadge(f.categorie)}</td>
       <td>${fmtMoney(f.montant, currentSchool?.currency)}</td>
-    </tr>`).join('') || '<tr><td colspan="2" class="text-center text-slate-400 py-6">Aucun frais fixé pour cette classe</td></tr>'
+    </tr>`).join('') || '<tr><td colspan="3" class="text-center text-slate-400 py-6">Aucun frais fixé pour cette classe</td></tr>'
 }
 
 init()

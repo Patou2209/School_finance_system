@@ -10,7 +10,7 @@
 import { Hono } from 'hono'
 import type { AppEnv } from '../types'
 import { requireAuth, requireRole } from '../middleware/auth'
-import { getFeeAmount, getTotalPaid } from '../utils/db'
+import { getFeeAmount, getTotalPaid, FEE_FOR_STUDENT_SQL, STUDENT_CATEGORIES } from '../utils/db'
 
 const classe = new Hono<AppEnv>()
 classe.use('*', requireAuth, requireRole('classe'))
@@ -55,7 +55,7 @@ classe.get('/fees', async (c) => {
     .prepare(
       `SELECT fs.*, t.name as trimester_name, t.number as trimester_number
        FROM fee_structures fs JOIN trimesters t ON t.id = fs.trimester_id
-       WHERE fs.class_id = ? ORDER BY t.number`
+       WHERE fs.class_id = ? ORDER BY t.number, fs.categorie`
     )
     .bind(classId)
     .all()
@@ -124,14 +124,13 @@ classe.get('/debts', async (c) => {
 
   const { results } = await db
     .prepare(
-      `SELECT st.id as student_id, st.nom, st.post_nom, st.prenom, st.matricule,
-        COALESCE(fs.montant, 0) as fee_amount,
+      `SELECT st.id as student_id, st.nom, st.post_nom, st.prenom, st.matricule, st.categorie,
+        ${FEE_FOR_STUDENT_SQL} as fee_amount,
         COALESCE((SELECT SUM(p.montant) FROM payments p WHERE p.student_id = st.id AND p.trimester_id = ? AND p.cancelled = 0), 0) as total_paid
        FROM students st
-       LEFT JOIN fee_structures fs ON fs.class_id = st.class_id AND fs.trimester_id = ?
        WHERE st.active = 1 AND st.class_id = ?`
     )
-    .bind(trimesterId, trimesterId, classId)
+    .bind(trimesterId, trimesterId, trimesterId, classId)
     .all<any>()
 
   const debts = results
@@ -149,14 +148,18 @@ classe.post('/students', async (c) => {
   const classId = myClassId(c)
   const user = c.get('user')
   const body = await c.req.json<any>()
-  const { nom, post_nom, prenom, sexe, matricule, date_naissance, parent_contact } = body
+  const { nom, post_nom, prenom, sexe, matricule, date_naissance, parent_contact, categorie } = body
   if (!nom || !post_nom) return c.json({ error: 'Nom et post-nom requis' }, 400)
+  const cat = categorie || 'normal'
+  if (!STUDENT_CATEGORIES.includes(cat)) {
+    return c.json({ error: `Catégorie invalide (autorisées: ${STUDENT_CATEGORIES.join(', ')})` }, 400)
+  }
   const result = await db
     .prepare(
-      `INSERT INTO students (school_id, class_id, matricule, nom, post_nom, prenom, sexe, date_naissance, parent_contact)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO students (school_id, class_id, matricule, nom, post_nom, prenom, sexe, date_naissance, parent_contact, categorie)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .bind(user.school_id, classId, matricule || null, nom, post_nom, prenom || null, sexe || null, date_naissance || null, parent_contact || null)
+    .bind(user.school_id, classId, matricule || null, nom, post_nom, prenom || null, sexe || null, date_naissance || null, parent_contact || null, cat)
     .run()
   return c.json({ success: true, id: result.meta.last_row_id })
 })
@@ -172,15 +175,41 @@ classe.post('/students/bulk', async (c) => {
   let created = 0
   for (const s of students) {
     if (!s.nom || !s.post_nom) continue
+    const cat = STUDENT_CATEGORIES.includes(s.categorie) ? s.categorie : 'normal'
     await db
       .prepare(
-        `INSERT INTO students (school_id, class_id, matricule, nom, post_nom, prenom, sexe) VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO students (school_id, class_id, matricule, nom, post_nom, prenom, sexe, categorie) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .bind(user.school_id, classId, s.matricule || null, s.nom, s.post_nom, s.prenom || null, s.sexe || null)
+      .bind(user.school_id, classId, s.matricule || null, s.nom, s.post_nom, s.prenom || null, s.sexe || null, cat)
       .run()
     created++
   }
   return c.json({ success: true, created })
+})
+
+// PATCH /api/classe/students/:id - modifie un élève de la classe connectée (dont sa catégorie)
+classe.patch('/students/:id', async (c) => {
+  const db = c.env.DB
+  const classId = myClassId(c)
+  const id = c.req.param('id')
+  const body = await c.req.json<any>()
+  if (body.categorie !== undefined && !STUDENT_CATEGORIES.includes(body.categorie)) {
+    return c.json({ error: `Catégorie invalide (autorisées: ${STUDENT_CATEGORIES.join(', ')})` }, 400)
+  }
+  const fields: string[] = []
+  const values: any[] = []
+  for (const key of ['nom', 'post_nom', 'prenom', 'sexe', 'matricule', 'date_naissance', 'parent_contact', 'categorie']) {
+    if (body[key] !== undefined) {
+      fields.push(`${key} = ?`)
+      values.push(body[key])
+    }
+  }
+  if (fields.length === 0) return c.json({ error: 'Aucun champ à mettre à jour' }, 400)
+  const result = await db.prepare(`UPDATE students SET ${fields.join(', ')} WHERE id = ? AND class_id = ?`)
+    .bind(...values, id, classId)
+    .run()
+  if (!result.meta.changes) return c.json({ error: 'Élève introuvable dans votre classe' }, 404)
+  return c.json({ success: true })
 })
 
 // DELETE /api/classe/students/:id - supprime un élève de la classe connectée uniquement
@@ -208,7 +237,7 @@ classe.get('/student/:id/situation', async (c) => {
 
   if (!trimesterId) return c.json({ student })
 
-  const feeAmount = await getFeeAmount(db, classId, Number(trimesterId))
+  const feeAmount = await getFeeAmount(db, classId, Number(trimesterId), (student as any).categorie)
   const totalPaid = await getTotalPaid(db, Number(studentId), Number(trimesterId))
   const payments = await db
     .prepare(

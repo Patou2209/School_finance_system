@@ -5,7 +5,7 @@
 import { Hono } from 'hono'
 import type { AppEnv } from '../types'
 import { requireAuth, requireRole } from '../middleware/auth'
-import { getCurrentSchoolYear, nextReceiptNumber, syncCashbookAutoEntry, getTotalPaid, getFeeAmount } from '../utils/db'
+import { getCurrentSchoolYear, nextReceiptNumber, syncCashbookAutoEntry, getTotalPaid, getFeeAmount, FEE_FOR_STUDENT_SQL } from '../utils/db'
 
 const perception = new Hono<AppEnv>()
 perception.use('*', requireAuth, requireRole('admin', 'percepteur'))
@@ -103,13 +103,12 @@ perception.get('/debts-summary', async (c) => {
     const { results: rows } = await db
       .prepare(
         `SELECT st.id,
-           COALESCE(fs.montant, 0) as fee_amount,
+           ${FEE_FOR_STUDENT_SQL} as fee_amount,
            COALESCE((SELECT SUM(p.montant) FROM payments p WHERE p.student_id = st.id AND p.trimester_id = ? AND p.cancelled = 0), 0) as total_paid
          FROM students st
-         LEFT JOIN fee_structures fs ON fs.class_id = st.class_id AND fs.trimester_id = ?
          WHERE st.class_id = ? AND st.active = 1`
       )
-      .bind(trimesterId, trimesterId, cl.id)
+      .bind(trimesterId, trimesterId, trimesterId, cl.id)
       .all<any>()
     const debtors = rows.filter((r: any) => r.fee_amount - r.total_paid > 0)
     const totalDebt = debtors.reduce((sum: number, r: any) => sum + (r.fee_amount - r.total_paid), 0)
@@ -141,7 +140,7 @@ perception.get('/registre', async (c) => {
 
   // 1) Liste des élèves de la classe
   const { results: baseStudents } = await db
-    .prepare(`SELECT st.id, st.nom, st.post_nom, st.prenom, st.matricule, cl.name as class_name
+    .prepare(`SELECT st.id, st.nom, st.post_nom, st.prenom, st.matricule, st.categorie, cl.name as class_name
               FROM students st JOIN classes cl ON cl.id = st.class_id
               WHERE st.class_id = ? AND st.active = 1
               ORDER BY st.nom ASC, st.post_nom ASC`)
@@ -206,7 +205,7 @@ perception.get('/class-receipts', async (c) => {
 
   const { results: payments } = await db
     .prepare(
-      `SELECT p.*, st.nom, st.post_nom, st.prenom, cl.name as class_name, t.name as trimester_name, t.number as trimester_number,
+      `SELECT p.*, st.nom, st.post_nom, st.prenom, st.categorie, cl.name as class_name, t.name as trimester_name, t.number as trimester_number,
               u.name as percepteur_name, sy.label as year_label
        FROM payments p
        JOIN students st ON st.id = p.student_id
@@ -223,7 +222,7 @@ perception.get('/class-receipts', async (c) => {
   // Calculer solde/total_paid par élève+trimestre pour chaque reçu affiché
   const enriched = []
   for (const p of payments) {
-    const feeAmount = await getFeeAmount(db, p.class_id, p.trimester_id)
+    const feeAmount = await getFeeAmount(db, p.class_id, p.trimester_id, p.categorie)
     const totalPaid = await getTotalPaid(db, p.student_id, p.trimester_id)
     enriched.push({ ...p, fee_amount: feeAmount, total_paid: totalPaid, balance: feeAmount - totalPaid })
   }
@@ -247,7 +246,7 @@ perception.get('/student/:id/situation', async (c) => {
     return c.json({ student })
   }
 
-  const feeAmount = await getFeeAmount(db, student.class_id, Number(trimesterId))
+  const feeAmount = await getFeeAmount(db, student.class_id, Number(trimesterId), student.categorie)
   const totalPaid = await getTotalPaid(db, Number(studentId), Number(trimesterId))
   const solde = feeAmount - totalPaid
 
@@ -310,7 +309,7 @@ perception.post('/pay', async (c) => {
   // Synchroniser la ligne agrégée "Frais scolaire" du livre de caisse pour ce jour
   await syncCashbookAutoEntry(db, user.school_id, schoolYear.id, payDate, user.uid)
 
-  const feeAmount = await getFeeAmount(db, student.class_id, Number(trimester_id))
+  const feeAmount = await getFeeAmount(db, student.class_id, Number(trimester_id), student.categorie)
   const totalPaid = await getTotalPaid(db, Number(student_id), Number(trimester_id))
 
   return c.json({
@@ -363,7 +362,7 @@ perception.get('/receipt/:paymentId', async (c) => {
   if (!payment) return c.json({ error: 'Paiement introuvable' }, 404)
 
   const school = await db.prepare(`SELECT * FROM schools WHERE id = ?`).bind(user.school_id).first<any>()
-  const feeAmount = await getFeeAmount(db, payment.class_id, payment.trimester_id)
+  const feeAmount = await getFeeAmount(db, payment.class_id, payment.trimester_id, payment.categorie)
   const totalPaid = await getTotalPaid(db, payment.student_id, payment.trimester_id)
 
   return c.json({
@@ -385,18 +384,17 @@ perception.get('/debts', async (c) => {
   if (!trimesterId) return c.json({ error: 'trimester_id requis' }, 400)
 
   let classFilter = ''
-  const binds: any[] = [trimesterId, trimesterId]
+  const binds: any[] = [trimesterId, trimesterId, trimesterId]
   if (classId) {
     classFilter = 'AND st.class_id = ?'
   }
 
   let query = `
-    SELECT st.id as student_id, st.nom, st.post_nom, st.prenom, st.matricule, cl.id as class_id, cl.name as class_name,
-      COALESCE(fs.montant, 0) as fee_amount,
+    SELECT st.id as student_id, st.nom, st.post_nom, st.prenom, st.matricule, st.categorie, cl.id as class_id, cl.name as class_name,
+      ${FEE_FOR_STUDENT_SQL} as fee_amount,
       COALESCE((SELECT SUM(p.montant) FROM payments p WHERE p.student_id = st.id AND p.trimester_id = ? AND p.cancelled = 0), 0) as total_paid
     FROM students st
     JOIN classes cl ON cl.id = st.class_id
-    LEFT JOIN fee_structures fs ON fs.class_id = cl.id AND fs.trimester_id = ?
     WHERE st.active = 1 AND cl.school_id = ? ${classFilter}
   `
   binds.push(user.school_id)

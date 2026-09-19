@@ -116,11 +116,47 @@ export async function getTotalPaid(db: D1Database, studentId: number, trimesterI
   return row?.total ?? 0
 }
 
-/** Récupère le montant des frais fixés pour une classe + trimestre. */
-export async function getFeeAmount(db: D1Database, classId: number, trimesterId: number): Promise<number> {
-  const row = await db
-    .prepare(`SELECT montant FROM fee_structures WHERE class_id = ? AND trimester_id = ?`)
-    .bind(classId, trimesterId)
-    .first<{ montant: number }>()
-  return row?.montant ?? 0
+/** Catégories d'élèves autorisées. */
+export const STUDENT_CATEGORIES = ['normal', 'indigent', 'fils_enseignant'] as const
+export const STUDENT_CATEGORY_LABELS: Record<string, string> = {
+  normal: 'Élève normal',
+  indigent: 'Indigent',
+  fils_enseignant: "Fils d'enseignant"
 }
+
+/**
+ * Récupère le montant des frais fixés pour une classe + trimestre + catégorie
+ * d'élève. Si aucun montant n'est fixé pour la catégorie demandée, le tarif
+ * de la catégorie 'normal' s'applique par défaut.
+ */
+export async function getFeeAmount(
+  db: D1Database,
+  classId: number,
+  trimesterId: number,
+  categorie: string = 'normal'
+): Promise<number> {
+  const cat = STUDENT_CATEGORIES.includes(categorie as any) ? categorie : 'normal'
+  const row = await db
+    .prepare(`SELECT montant FROM fee_structures WHERE class_id = ? AND trimester_id = ? AND categorie = ?`)
+    .bind(classId, trimesterId, cat)
+    .first<{ montant: number }>()
+  if (row) return row.montant
+  if (cat !== 'normal') {
+    const fallback = await db
+      .prepare(`SELECT montant FROM fee_structures WHERE class_id = ? AND trimester_id = ? AND categorie = 'normal'`)
+      .bind(classId, trimesterId)
+      .first<{ montant: number }>()
+    return fallback?.montant ?? 0
+  }
+  return 0
+}
+
+/**
+ * Fragment SQL réutilisable : montant des frais applicable à un élève `st`
+ * (selon sa catégorie, avec repli sur la catégorie 'normal').
+ * Nécessite 2 bindings consécutifs : trimesterId, trimesterId.
+ */
+export const FEE_FOR_STUDENT_SQL = `COALESCE(
+  (SELECT f1.montant FROM fee_structures f1 WHERE f1.class_id = st.class_id AND f1.trimester_id = ? AND f1.categorie = st.categorie),
+  (SELECT f2.montant FROM fee_structures f2 WHERE f2.class_id = st.class_id AND f2.trimester_id = ? AND f2.categorie = 'normal'),
+  0)`

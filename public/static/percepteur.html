@@ -60,12 +60,14 @@
             <div><label class="text-xs font-medium text-slate-600 block mb-1">Jour</label><input type="date" id="perc-date" class="px-3 py-2 border rounded-lg text-sm"></div>
             <button onclick="loadRegistre()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-search mr-2"></i>Afficher</button>
             <button onclick="printAllReceipts()" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-print mr-2"></i>Imprimer tous les reçus du jour</button>
+            <button onclick="exportRegistreExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-excel mr-1.5"></i>Excel</button>
+            <button onclick="exportRegistrePdf()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-pdf mr-1.5"></i>PDF</button>
           </div>
         </div>
         <div id="registre-summary" class="grid grid-cols-3 gap-4 mb-4"></div>
         <div class="section-card overflow-x-auto">
           <table class="data-table">
-            <thead><tr><th>N°</th><th>Nom et Post-nom</th><th>Montant du jour</th><th>Reçu</th><th>Action</th></tr></thead>
+            <thead><tr><th>N°</th><th>Nom et Post-nom</th><th>Catégorie</th><th>Montant du jour</th><th>Reçu</th><th>Action</th></tr></thead>
             <tbody id="registre-tbody"></tbody>
           </table>
         </div>
@@ -87,21 +89,31 @@
 
       <!-- vue 2 = détail des dettes d'une classe -->
       <div id="debts-detail-view" class="hidden">
-        <div class="mb-6">
-          <button onclick="closeDebtsDetail()" class="text-blue-600 hover:underline text-sm font-semibold mb-2"><i class="fas fa-arrow-left mr-1"></i>Retour aux classes</button>
-          <h1 id="debts-detail-title" class="text-2xl font-bold text-slate-800">Classe</h1>
-          <p class="text-slate-500 text-sm">Élèves n'ayant pas soldé leurs frais</p>
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <button onclick="closeDebtsDetail()" class="text-blue-600 hover:underline text-sm font-semibold mb-2"><i class="fas fa-arrow-left mr-1"></i>Retour aux classes</button>
+            <h1 id="debts-detail-title" class="text-2xl font-bold text-slate-800">Classe</h1>
+            <p class="text-slate-500 text-sm">Élèves n'ayant pas soldé leurs frais</p>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="exportDebtsExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-excel mr-1.5"></i>Excel</button>
+            <button onclick="exportDebtsPdf()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-pdf mr-1.5"></i>PDF</button>
+          </div>
         </div>
         <div id="debts-summary" class="grid grid-cols-2 gap-4 mb-4"></div>
         <div class="section-card overflow-x-auto">
-          <table class="data-table"><thead><tr><th>Nom et Post-nom</th><th>Frais fixé</th><th>Payé</th><th>Dette restante</th></tr></thead><tbody id="debts-tbody"></tbody></table>
+          <table class="data-table"><thead><tr><th>Nom et Post-nom</th><th>Catégorie</th><th>Frais fixé</th><th>Payé</th><th>Dette restante</th></tr></thead><tbody id="debts-tbody"></tbody></table>
         </div>
       </div>
     </section>
   </main>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <script src="/static/js/api.js"></script>
+<script src="/static/js/export.js"></script>
 <script src="/static/js/percepteur.js"></script>
 </body>
 </html>

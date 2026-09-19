@@ -265,15 +265,15 @@ async function viewClassDetail(classId) {
 
         <div class="mb-5">
           <p class="text-xs font-semibold text-slate-500 mb-2">Frais scolaires fixés</p>
-          <table class="data-table"><thead><tr><th>Trimestre</th><th>Montant</th></tr></thead>
-            <tbody>${data.fee_structures.map(f => `<tr><td>${escapeHtml(f.trimester_name)}</td><td>${fmtMoney(f.montant, currentSchool?.currency)}</td></tr>`).join('') || '<tr><td colspan="2" class="text-center text-slate-400 py-3">Aucun frais fixé</td></tr>'}</tbody>
+          <table class="data-table"><thead><tr><th>Trimestre</th><th>Catégorie</th><th>Montant</th></tr></thead>
+            <tbody>${data.fee_structures.map(f => `<tr><td>${escapeHtml(f.trimester_name)}</td><td>${categoryBadge(f.categorie)}</td><td>${fmtMoney(f.montant, currentSchool?.currency)}</td></tr>`).join('') || '<tr><td colspan="3" class="text-center text-slate-400 py-3">Aucun frais fixé</td></tr>'}</tbody>
           </table>
         </div>
 
         <div class="mb-5">
           <p class="text-xs font-semibold text-slate-500 mb-2">Élèves (${data.students.length})</p>
-          <table class="data-table"><thead><tr><th>Nom</th><th>Post-nom</th></tr></thead>
-            <tbody>${data.students.map(s => `<tr><td class="font-medium">${escapeHtml(s.nom)}</td><td>${escapeHtml(s.post_nom)}</td></tr>`).join('') || '<tr><td colspan="2" class="text-center text-slate-400 py-3">Aucun élève</td></tr>'}</tbody>
+          <table class="data-table"><thead><tr><th>Nom</th><th>Post-nom</th><th>Catégorie</th></tr></thead>
+            <tbody>${data.students.map(s => `<tr><td class="font-medium">${escapeHtml(s.nom)}</td><td>${escapeHtml(s.post_nom)}</td><td>${categoryBadge(s.categorie)}</td></tr>`).join('') || '<tr><td colspan="3" class="text-center text-slate-400 py-3">Aucun élève</td></tr>'}</tbody>
           </table>
         </div>
 
@@ -455,18 +455,82 @@ function populateStudentClassFilter() {
   sel.onchange = loadStudents
 }
 
+let studentsCache = []
+
 async function loadStudents() {
   const classId = document.getElementById('students-class-filter').value
   const url = classId ? `/api/admin/students?class_id=${classId}` : '/api/admin/students'
   const { students } = await Api.get(url)
+  studentsCache = students
   document.getElementById('students-tbody').innerHTML = students.map(s => `
     <tr>
       <td class="font-medium">${escapeHtml(s.nom)}</td>
       <td>${escapeHtml(s.post_nom)}</td>
       <td>${escapeHtml(s.prenom || '—')}</td>
       <td>${s.sexe || '—'}</td>
-      <td><button onclick="deleteStudent(${s.id})" class="text-red-600 hover:underline text-xs font-semibold"><i class="fas fa-trash"></i></button></td>
-    </tr>`).join('') || '<tr><td colspan="5" class="text-center text-slate-400 py-6">Aucun élève. L\'ajout et l\'import se font depuis l\'espace de connexion de chaque classe.</td></tr>'
+      <td>${categoryBadge(s.categorie)}</td>
+      <td class="space-x-2 whitespace-nowrap">
+        <button onclick="showEditStudentCategoryModal(${s.id}, '${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}', '${s.categorie || 'normal'}')" class="text-blue-600 hover:underline text-xs font-semibold"><i class="fas fa-tag"></i> Catégorie</button>
+        <button onclick="deleteStudent(${s.id})" class="text-red-600 hover:underline text-xs font-semibold"><i class="fas fa-trash"></i></button>
+      </td>
+    </tr>`).join('') || '<tr><td colspan="6" class="text-center text-slate-400 py-6">Aucun élève. L\'ajout et l\'import se font depuis l\'espace de connexion de chaque classe.</td></tr>'
+}
+
+function showEditStudentCategoryModal(studentId, studentName, currentCat) {
+  openModal(`
+    <div class="p-6">
+      <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fas fa-tag mr-2 text-blue-600"></i>Catégorie de l'élève</h3>
+      <p class="text-sm text-slate-500 mb-4">${escapeHtml(studentName)}</p>
+      <form id="edit-cat-form" class="space-y-3">
+        <div><label class="text-xs font-medium text-slate-600">Catégorie *</label>
+          <select id="ec-categorie" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">${categoryOptions(currentCat)}</select>
+        </div>
+        <p class="text-xs text-slate-400">Le montant des frais appliqué à cet élève dépend de sa catégorie (voir l'onglet « Frais scolaires »).</p>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100">Annuler</button>
+          <button type="submit" class="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">Enregistrer</button>
+        </div>
+      </form>
+    </div>`)
+  document.getElementById('edit-cat-form').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    try {
+      await Api.patch(`/api/admin/students/${studentId}`, { categorie: document.getElementById('ec-categorie').value })
+      toast('Catégorie mise à jour', 'success')
+      closeModal()
+      await loadStudents()
+    } catch (err) { toast(err.message, 'error') }
+  })
+}
+
+function exportStudentsExcel() {
+  const classSel = document.getElementById('students-class-filter')
+  const className = classSel.value ? classSel.options[classSel.selectedIndex].text : 'Toutes les classes'
+  exportTableToExcel({
+    filename: `eleves_${todayStr()}`,
+    sheetName: 'Élèves',
+    title: `Liste des élèves — ${className} — ${currentSchool ? currentSchool.name : ''}`,
+    columns: [
+      { header: 'Nom', key: 'nom' }, { header: 'Post-nom', key: 'post_nom' }, { header: 'Prénom', key: 'prenom' },
+      { header: 'Sexe', key: 'sexe' }, { header: 'Catégorie', key: 'cat' }, { header: 'Classe', key: 'class_name' }
+    ],
+    rows: studentsCache.map(s => ({ ...s, prenom: s.prenom || '', sexe: s.sexe || '', cat: categoryLabel(s.categorie) }))
+  })
+}
+
+function exportStudentsPdf() {
+  const classSel = document.getElementById('students-class-filter')
+  const className = classSel.value ? classSel.options[classSel.selectedIndex].text : 'Toutes les classes'
+  exportTableToPdf({
+    filename: `eleves_${todayStr()}`,
+    title: `Liste des élèves — ${className}`,
+    subtitle: `${currentSchool ? currentSchool.name : ''} — ${studentsCache.length} élève(s)`,
+    columns: [
+      { header: 'Nom', key: 'nom' }, { header: 'Post-nom', key: 'post_nom' }, { header: 'Prénom', key: 'prenom' },
+      { header: 'Sexe', key: 'sexe' }, { header: 'Catégorie', key: 'cat' }, { header: 'Classe', key: 'class_name' }
+    ],
+    rows: studentsCache.map(s => ({ ...s, prenom: s.prenom || '', sexe: s.sexe || '', cat: categoryLabel(s.categorie) }))
+  })
 }
 
 async function deleteStudent(id) {
@@ -549,36 +613,77 @@ async function deleteStaff(id) {
 // ---------------------------------------------------------------------------
 // FRAIS SCOLAIRES (par classe x trimestre)
 // ---------------------------------------------------------------------------
+let feesExportData = [] // pour l'export : [{ class_name, categorie, t1, t2, t3 }]
+
 async function loadFeesTable() {
   const currentYear = schoolYears.find(y => y.is_current) || schoolYears[0]
-  if (!currentYear) { document.getElementById('fees-tbody').innerHTML = '<tr><td colspan="4" class="text-center text-slate-400 py-6">Créez une année scolaire d\'abord</td></tr>'; return }
+  if (!currentYear) { document.getElementById('fees-tbody').innerHTML = '<tr><td colspan="5" class="text-center text-slate-400 py-6">Créez une année scolaire d\'abord</td></tr>'; return }
   const { trimesters: ts } = await Api.get(`/api/admin/trimesters?school_year_id=${currentYear.id}`)
   const { classes } = await Api.get(`/api/admin/classes?school_year_id=${currentYear.id}`)
   const { fee_structures } = await Api.get(`/api/admin/fee-structures?school_year_id=${currentYear.id}`)
 
   const feeMap = {}
-  fee_structures.forEach(f => { feeMap[`${f.class_id}-${f.trimester_id}`] = f.montant })
+  fee_structures.forEach(f => { feeMap[`${f.class_id}-${f.trimester_id}-${f.categorie || 'normal'}`] = f.montant })
 
-  document.getElementById('fees-tbody').innerHTML = classes.map(cl => `
-    <tr>
-      <td class="font-medium">${escapeHtml(cl.name)}</td>
+  const CATS = ['normal', 'indigent', 'fils_enseignant']
+  feesExportData = []
+
+  document.getElementById('fees-tbody').innerHTML = classes.map(cl =>
+    CATS.map((cat, ci) => {
+      const exportRow = { class_name: cl.name, categorie: categoryLabel(cat) }
+      ts.forEach((t, i) => { exportRow['t' + (i + 1)] = feeMap[`${cl.id}-${t.id}-${cat}`] ?? '' })
+      feesExportData.push(exportRow)
+      return `
+    <tr class="${ci === 0 ? 'border-t-2 border-slate-200' : ''}">
+      ${ci === 0 ? `<td class="font-medium align-top" rowspan="3">${escapeHtml(cl.name)}</td>` : ''}
+      <td>${categoryBadge(cat)}</td>
       ${ts.map(t => `<td>
         <div class="flex items-center gap-1">
-          <input type="number" min="0" step="0.01" value="${feeMap[`${cl.id}-${t.id}`] ?? ''}" id="fee-${cl.id}-${t.id}" class="w-28 px-2 py-1 border rounded text-sm" placeholder="Montant">
-          <button onclick="saveFee(${cl.id}, ${t.id})" class="text-blue-600 text-xs"><i class="fas fa-save"></i></button>
+          <input type="number" min="0" step="0.01" value="${feeMap[`${cl.id}-${t.id}-${cat}`] ?? ''}" id="fee-${cl.id}-${t.id}-${cat}" class="w-28 px-2 py-1 border rounded text-sm" placeholder="${cat === 'normal' ? 'Montant' : 'Défaut: normal'}">
+          <button onclick="saveFee(${cl.id}, ${t.id}, '${cat}')" class="text-blue-600 text-xs" title="Enregistrer"><i class="fas fa-save"></i></button>
         </div>
       </td>`).join('')}
-    </tr>`).join('') || '<tr><td colspan="4" class="text-center text-slate-400 py-6">Aucune classe</td></tr>'
+    </tr>`
+    }).join('')
+  ).join('') || '<tr><td colspan="5" class="text-center text-slate-400 py-6">Aucune classe</td></tr>'
 }
 
-async function saveFee(classId, trimesterId) {
-  const input = document.getElementById(`fee-${classId}-${trimesterId}`)
+async function saveFee(classId, trimesterId, categorie) {
+  const input = document.getElementById(`fee-${classId}-${trimesterId}-${categorie}`)
   const montant = parseFloat(input.value)
   if (isNaN(montant) || montant < 0) return toast('Montant invalide', 'error')
   try {
-    await Api.post('/api/admin/fee-structures', { class_id: classId, trimester_id: trimesterId, montant })
-    toast('Frais enregistré', 'success')
+    await Api.post('/api/admin/fee-structures', { class_id: classId, trimester_id: trimesterId, montant, categorie })
+    toast(`Frais enregistré (${categoryLabel(categorie)})`, 'success')
   } catch (err) { toast(err.message, 'error') }
+}
+
+const FEES_EXPORT_COLUMNS = [
+  { header: 'Classe', key: 'class_name' },
+  { header: "Catégorie d'élève", key: 'categorie' },
+  { header: '1er Trimestre', key: 't1' },
+  { header: '2ème Trimestre', key: 't2' },
+  { header: '3ème Trimestre', key: 't3' }
+]
+
+function exportFeesExcel() {
+  exportTableToExcel({
+    filename: `frais_scolaires_${todayStr()}`,
+    sheetName: 'Frais scolaires',
+    title: `Frais scolaires par classe, trimestre et catégorie — ${currentSchool ? currentSchool.name : ''}`,
+    columns: FEES_EXPORT_COLUMNS,
+    rows: feesExportData
+  })
+}
+
+function exportFeesPdf() {
+  exportTableToPdf({
+    filename: `frais_scolaires_${todayStr()}`,
+    title: 'Frais scolaires par classe, trimestre et catégorie',
+    subtitle: currentSchool ? currentSchool.name : '',
+    columns: FEES_EXPORT_COLUMNS,
+    rows: feesExportData
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -630,6 +735,8 @@ function closePerceptionDetail() {
   loadPerceptionClasses()
 }
 
+let registreCache = null
+
 async function loadRegistre() {
   if (!currentPerceptionClass) return
   const classId = currentPerceptionClass.id
@@ -638,6 +745,7 @@ async function loadRegistre() {
   if (!classId || !trimesterId) return
 
   const data = await Api.get(`/api/perception/registre?class_id=${classId}&date=${date}&trimester_id=${trimesterId}`)
+  registreCache = data
 
   document.getElementById('registre-summary').innerHTML = `
     <div class="stat-card"><p class="text-xs text-slate-500 mb-1">Élèves ayant payé ce jour</p><p class="text-xl font-bold text-slate-800">${data.count}</p></div>
@@ -649,6 +757,7 @@ async function loadRegistre() {
     <tr>
       <td>${idx + 1}</td>
       <td class="font-medium"><button onclick="showStudentReceipts(${s.id}, '${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}', ${trimesterId})" class="hover:underline hover:text-blue-600 text-left">${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}</button></td>
+      <td>${categoryBadge(s.categorie)}</td>
       <td>${s.montant_jour ? fmtMoney(s.montant_jour, currentSchool?.currency) : '<span class="text-slate-400">—</span>'}</td>
       <td>${s.receipt_number ? `<span class="badge badge-green">${escapeHtml(s.receipt_number)}</span>${s.payments_count_today > 1 ? ` <span class="badge badge-blue">x${s.payments_count_today}</span>` : ''}` : '—'}</td>
       <td class="space-x-2 whitespace-nowrap">
@@ -658,7 +767,52 @@ async function loadRegistre() {
           : ''}
         <button onclick="showPayModal(${s.id}, '${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}', ${trimesterId})" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-semibold"><i class="fas fa-hand-holding-dollar mr-1"></i>Percevoir</button>
       </td>
-    </tr>`).join('') || '<tr><td colspan="5" class="text-center text-slate-400 py-6">Aucun élève dans cette classe</td></tr>'
+    </tr>`).join('') || '<tr><td colspan="6" class="text-center text-slate-400 py-6">Aucun élève dans cette classe</td></tr>'
+}
+
+const REGISTRE_EXPORT_COLUMNS = [
+  { header: 'N°', key: 'num' },
+  { header: 'Nom et Post-nom', key: 'full_name' },
+  { header: 'Catégorie', key: 'cat' },
+  { header: 'Montant du jour', key: 'montant' },
+  { header: 'Reçu', key: 'receipt' }
+]
+
+function registreExportRows() {
+  if (!registreCache) return []
+  return registreCache.students.map((s, i) => ({
+    num: i + 1,
+    full_name: `${s.nom} ${s.post_nom}`,
+    cat: categoryLabel(s.categorie),
+    montant: s.montant_jour ? fmtMoney(s.montant_jour, currentSchool?.currency) : '',
+    receipt: s.receipt_number || ''
+  }))
+}
+
+function exportRegistreExcel() {
+  if (!registreCache || !currentPerceptionClass) return toast('Affichez d\'abord un registre', 'error')
+  const rows = registreExportRows()
+  rows.push({ num: '', full_name: 'TOTAL DU JOUR', cat: '', montant: fmtMoney(registreCache.total, currentSchool?.currency), receipt: `${registreCache.count} paiement(s)` })
+  exportTableToExcel({
+    filename: `registre_${currentPerceptionClass.name.replace(/\s+/g, '_')}_${registreCache.date}`,
+    sheetName: 'Registre',
+    title: `Registre de perception — ${currentPerceptionClass.name} — ${fmtDate(registreCache.date)}`,
+    columns: REGISTRE_EXPORT_COLUMNS,
+    rows
+  })
+}
+
+function exportRegistrePdf() {
+  if (!registreCache || !currentPerceptionClass) return toast('Affichez d\'abord un registre', 'error')
+  const rows = registreExportRows()
+  rows.push({ num: '', full_name: 'TOTAL DU JOUR', cat: '', montant: fmtMoney(registreCache.total, currentSchool?.currency), receipt: `${registreCache.count} paiement(s)` })
+  exportTableToPdf({
+    filename: `registre_${currentPerceptionClass.name.replace(/\s+/g, '_')}_${registreCache.date}`,
+    title: `Registre de perception — ${currentPerceptionClass.name}`,
+    subtitle: `${currentSchool ? currentSchool.name : ''} — ${fmtDate(registreCache.date)}`,
+    columns: REGISTRE_EXPORT_COLUMNS,
+    rows
+  })
 }
 
 // Affiche la liste des paiements d'un élève (toutes dates) pour ce trimestre,
@@ -791,12 +945,15 @@ function closeDebtsDetail() {
   loadDebtsClasses()
 }
 
+let debtsCache = null
+
 async function loadDebts() {
   if (!currentDebtsClass) return
   const trimesterId = document.getElementById('debt-summary-trimester').value
   const classId = currentDebtsClass.id
   if (!trimesterId) return
   const data = await Api.get(`/api/perception/debts?trimester_id=${trimesterId}&class_id=${classId}`)
+  debtsCache = data
 
   document.getElementById('debts-summary').innerHTML = `
     <div class="stat-card"><p class="text-xs text-slate-500 mb-1">Élèves endettés</p><p class="text-xl font-bold text-red-600">${data.count}</p></div>
@@ -806,10 +963,54 @@ async function loadDebts() {
   document.getElementById('debts-tbody').innerHTML = data.debts.map(d => `
     <tr>
       <td class="font-medium">${escapeHtml(d.nom)} ${escapeHtml(d.post_nom)}</td>
+      <td>${categoryBadge(d.categorie)}</td>
       <td>${fmtMoney(d.fee_amount, currentSchool?.currency)}</td>
       <td class="text-green-600">${fmtMoney(d.total_paid, currentSchool?.currency)}</td>
       <td class="text-red-600 font-semibold">${fmtMoney(d.balance, currentSchool?.currency)}</td>
-    </tr>`).join('') || '<tr><td colspan="4" class="text-center text-slate-400 py-6">Aucune dette : tous les frais sont soldés 🎉</td></tr>'
+    </tr>`).join('') || '<tr><td colspan="5" class="text-center text-slate-400 py-6">Aucune dette : tous les frais sont soldés 🎉</td></tr>'
+}
+
+const DEBTS_EXPORT_COLUMNS = [
+  { header: 'Nom et Post-nom', key: 'full_name' },
+  { header: 'Catégorie', key: 'cat' },
+  { header: 'Frais fixé', key: 'fee' },
+  { header: 'Payé', key: 'paid' },
+  { header: 'Dette restante', key: 'balance' }
+]
+
+function debtsExportRows() {
+  if (!debtsCache) return []
+  const rows = debtsCache.debts.map(d => ({
+    full_name: `${d.nom} ${d.post_nom}`,
+    cat: categoryLabel(d.categorie),
+    fee: fmtMoney(d.fee_amount, currentSchool?.currency),
+    paid: fmtMoney(d.total_paid, currentSchool?.currency),
+    balance: fmtMoney(d.balance, currentSchool?.currency)
+  }))
+  rows.push({ full_name: 'TOTAL', cat: '', fee: '', paid: '', balance: fmtMoney(debtsCache.total_debt, currentSchool?.currency) })
+  return rows
+}
+
+function exportDebtsExcel() {
+  if (!debtsCache || !currentDebtsClass) return toast('Affichez d\'abord une liste de dettes', 'error')
+  exportTableToExcel({
+    filename: `dettes_${currentDebtsClass.name.replace(/\s+/g, '_')}_${todayStr()}`,
+    sheetName: 'Dettes',
+    title: `Liste des dettes — ${currentDebtsClass.name} — ${currentSchool ? currentSchool.name : ''}`,
+    columns: DEBTS_EXPORT_COLUMNS,
+    rows: debtsExportRows()
+  })
+}
+
+function exportDebtsPdf() {
+  if (!debtsCache || !currentDebtsClass) return toast('Affichez d\'abord une liste de dettes', 'error')
+  exportTableToPdf({
+    filename: `dettes_${currentDebtsClass.name.replace(/\s+/g, '_')}_${todayStr()}`,
+    title: `Liste des dettes — ${currentDebtsClass.name}`,
+    subtitle: `${currentSchool ? currentSchool.name : ''} — ${debtsCache.count} élève(s) endetté(s)`,
+    columns: DEBTS_EXPORT_COLUMNS,
+    rows: debtsExportRows()
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -820,10 +1021,13 @@ function populateBudgetSelectors() {
   sel.innerHTML = '<option value="">Annuel (toute l\'année)</option>' + trimesters.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')
 }
 
+let budgetCache = []
+
 async function loadBudget() {
   const trimesterId = document.getElementById('budget-trimester').value
   const url = trimesterId ? `/api/budget/comparison?trimester_id=${trimesterId}` : '/api/budget/comparison'
   const { rows } = await Api.get(url)
+  budgetCache = rows
   document.getElementById('budget-tbody').innerHTML = rows.map(r => `
     <tr>
       <td class="font-medium">${escapeHtml(r.category_name)}</td>
@@ -833,6 +1037,48 @@ async function loadBudget() {
       <td class="${r.ecart >= 0 ? 'text-green-600' : 'text-red-600'} font-semibold">${r.ecart >= 0 ? '+' : ''}${fmtMoney(r.ecart, currentSchool?.currency)}</td>
       <td>${r.taux !== null ? r.taux + '%' : '—'}</td>
     </tr>`).join('') || '<tr><td colspan="6" class="text-center text-slate-400 py-6">Aucune catégorie budgétaire</td></tr>'
+}
+
+const BUDGET_EXPORT_COLUMNS = [
+  { header: 'Catégorie', key: 'category_name' },
+  { header: 'Type', key: 'type_label' },
+  { header: 'Prévu', key: 'prevu_f' },
+  { header: 'Réalisé', key: 'realise_f' },
+  { header: 'Écart', key: 'ecart_f' },
+  { header: 'Taux', key: 'taux_f' }
+]
+
+function budgetExportRows() {
+  return budgetCache.map(r => ({
+    category_name: r.category_name,
+    type_label: r.type === 'RECETTE' ? 'Recette' : 'Dépense',
+    prevu_f: fmtMoney(r.prevu, currentSchool?.currency),
+    realise_f: fmtMoney(r.realise, currentSchool?.currency),
+    ecart_f: (r.ecart >= 0 ? '+' : '') + fmtMoney(r.ecart, currentSchool?.currency),
+    taux_f: r.taux !== null ? r.taux + '%' : '—'
+  }))
+}
+
+function exportBudgetExcel() {
+  if (!budgetCache.length) return toast('Aucune donnée budgétaire à exporter', 'error')
+  exportTableToExcel({
+    filename: `budget_${todayStr()}`,
+    sheetName: 'Budget',
+    title: `Prévision budgétaire (prévu vs réalisé) — ${currentSchool ? currentSchool.name : ''}`,
+    columns: BUDGET_EXPORT_COLUMNS,
+    rows: budgetExportRows()
+  })
+}
+
+function exportBudgetPdf() {
+  if (!budgetCache.length) return toast('Aucune donnée budgétaire à exporter', 'error')
+  exportTableToPdf({
+    filename: `budget_${todayStr()}`,
+    title: 'Prévision budgétaire (prévu vs réalisé)',
+    subtitle: currentSchool ? currentSchool.name : '',
+    columns: BUDGET_EXPORT_COLUMNS,
+    rows: budgetExportRows()
+  })
 }
 
 async function showAddPrevisionModal() {
@@ -879,6 +1125,8 @@ async function showAddPrevisionModal() {
 // ---------------------------------------------------------------------------
 // LIVRE DE CAISSE
 // ---------------------------------------------------------------------------
+let cashbookCache = null
+
 async function loadCashbook() {
   const from = document.getElementById('cb-from').value
   const to = document.getElementById('cb-to').value
@@ -889,6 +1137,7 @@ async function loadCashbook() {
   if (params.length) url += '?' + params.join('&')
 
   const data = await Api.get(url)
+  cashbookCache = data
 
   document.getElementById('cashbook-summary').innerHTML = `
     <div class="stat-card"><p class="text-xs text-slate-500 mb-1">Total Entrées</p><p class="text-xl font-bold text-green-600">${fmtMoney(data.total_entree, currentSchool?.currency)}</p></div>
@@ -926,6 +1175,58 @@ function printCashbook() {
   if (to) params.push(`to=${to}`)
   const url = '/print/cashbook.html' + (params.length ? '?' + params.join('&') : '')
   window.open(url, '_blank')
+}
+
+const CASHBOOK_EXPORT_COLUMNS = [
+  { header: 'Date', key: 'date_f' },
+  { header: 'Code', key: 'code' },
+  { header: 'Libellé', key: 'libelle' },
+  { header: 'Réf.', key: 'ref' },
+  { header: 'Entrée', key: 'entree_f' },
+  { header: 'Sortie', key: 'sortie_f' },
+  { header: 'Solde', key: 'solde_f' }
+]
+
+function cashbookExportRows() {
+  if (!cashbookCache) return []
+  const cur = currentSchool?.currency
+  const rows = [{ date_f: '', code: '', libelle: 'SOLDE INITIAL', ref: '', entree_f: '', sortie_f: '', solde_f: fmtMoney(cashbookCache.solde_initial, cur) }]
+  for (const e of cashbookCache.entries) {
+    rows.push({
+      date_f: fmtDate(e.entry_date),
+      code: e.code || '',
+      libelle: e.libelle,
+      ref: e.ref || '',
+      entree_f: e.entree ? fmtMoney(e.entree, cur) : '',
+      sortie_f: e.sortie ? fmtMoney(e.sortie, cur) : '',
+      solde_f: fmtMoney(e.solde, cur)
+    })
+  }
+  rows.push({ date_f: '', code: '', libelle: 'TOTAUX', ref: '', entree_f: fmtMoney(cashbookCache.total_entree, cur), sortie_f: fmtMoney(cashbookCache.total_sortie, cur), solde_f: fmtMoney(cashbookCache.solde_final, cur) })
+  return rows
+}
+
+function exportCashbookExcel() {
+  if (!cashbookCache) return toast('Chargez d\'abord le livre de caisse', 'error')
+  exportTableToExcel({
+    filename: `livre_de_caisse_${todayStr()}`,
+    sheetName: 'Livre de caisse',
+    title: `Livre de caisse — ${currentSchool ? currentSchool.name : ''}`,
+    columns: CASHBOOK_EXPORT_COLUMNS,
+    rows: cashbookExportRows()
+  })
+}
+
+function exportCashbookPdf() {
+  if (!cashbookCache) return toast('Chargez d\'abord le livre de caisse', 'error')
+  exportTableToPdf({
+    filename: `livre_de_caisse_${todayStr()}`,
+    title: 'Livre de caisse',
+    subtitle: currentSchool ? currentSchool.name : '',
+    columns: CASHBOOK_EXPORT_COLUMNS,
+    rows: cashbookExportRows(),
+    orientation: 'landscape'
+  })
 }
 
 async function showAddCashbookModal() {
@@ -1002,9 +1303,12 @@ function selectReportTab(trimesterId, el) {
   loadReport(trimesterId)
 }
 
+let reportCache = null
+
 async function loadReport(trimesterId) {
   document.getElementById('report-content').innerHTML = '<div class="loader"></div>'
   const data = await Api.get(`/api/reports/trimester/${trimesterId}`)
+  reportCache = data
   const s = data.summary
   document.getElementById('report-content').innerHTML = `
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -1042,6 +1346,77 @@ async function loadReport(trimesterId) {
       <button onclick="window.print()" class="text-sm text-slate-600 hover:underline"><i class="fas fa-print mr-1"></i>Imprimer ce rapport</button>
     </div>
   `
+}
+
+function reportExportSections() {
+  if (!reportCache) return null
+  const cur = currentSchool?.currency
+  const s = reportCache.summary
+  return {
+    title: `Rapport financier — ${reportCache.trimester.name} (${reportCache.school_year.label})`,
+    subtitle: currentSchool ? currentSchool.name : '',
+    sections: [
+      {
+        title: 'Synthèse',
+        sheetName: 'Synthèse',
+        columns: [{ header: 'Indicateur', key: 'k' }, { header: 'Valeur', key: 'v' }],
+        rows: [
+          { k: 'Frais attendus', v: fmtMoney(s.total_attendu, cur) },
+          { k: 'Frais perçus', v: fmtMoney(s.total_percu, cur) },
+          { k: 'Solde restant dû', v: fmtMoney(s.solde_frais, cur) },
+          { k: 'Taux de recouvrement', v: s.taux_recouvrement !== null ? s.taux_recouvrement + '%' : '—' },
+          { k: 'Total Entrées Caisse', v: fmtMoney(s.total_entree_caisse, cur) },
+          { k: 'Total Sorties Caisse', v: fmtMoney(s.total_sortie_caisse, cur) }
+        ]
+      },
+      {
+        title: 'Détail par classe',
+        sheetName: 'Par classe',
+        columns: [
+          { header: 'Classe', key: 'class_name' }, { header: 'Élèves', key: 'student_count' },
+          { header: 'Attendu', key: 'attendu_f' }, { header: 'Perçu', key: 'percu_f' },
+          { header: 'Solde', key: 'solde_f' }, { header: 'Taux', key: 'taux_f' }
+        ],
+        rows: reportCache.class_details.map(c => ({
+          class_name: c.class_name, student_count: c.student_count,
+          attendu_f: fmtMoney(c.attendu, cur), percu_f: fmtMoney(c.percu, cur),
+          solde_f: fmtMoney(c.solde, cur), taux_f: c.taux !== null ? c.taux + '%' : '—'
+        }))
+      },
+      {
+        title: 'Dépenses par catégorie',
+        sheetName: 'Dépenses',
+        columns: [{ header: 'Catégorie', key: 'category_name' }, { header: 'Montant', key: 'total_f' }],
+        rows: reportCache.expenses_by_category.map(e => ({ category_name: e.category_name, total_f: fmtMoney(e.total, cur) }))
+      },
+      {
+        title: 'Top 10 des débiteurs',
+        sheetName: 'Débiteurs',
+        columns: [{ header: 'Élève', key: 'full_name' }, { header: 'Classe', key: 'class_name' }, { header: 'Dette', key: 'balance_f' }],
+        rows: reportCache.top_debtors.map(d => ({ full_name: `${d.nom} ${d.post_nom}`, class_name: d.class_name, balance_f: fmtMoney(d.balance, cur) }))
+      }
+    ]
+  }
+}
+
+function exportReportExcel() {
+  const r = reportExportSections()
+  if (!r) return toast('Chargez d\'abord un rapport', 'error')
+  exportSheetsToExcel({
+    filename: `rapport_financier_${reportCache.trimester.name.replace(/\s+/g, '_')}_${todayStr()}`,
+    sheets: r.sections.map(sec => ({ sheetName: sec.sheetName, title: `${r.title} — ${sec.title}`, columns: sec.columns, rows: sec.rows }))
+  })
+}
+
+function exportReportPdf() {
+  const r = reportExportSections()
+  if (!r) return toast('Chargez d\'abord un rapport', 'error')
+  exportSectionsToPdf({
+    filename: `rapport_financier_${reportCache.trimester.name.replace(/\s+/g, '_')}_${todayStr()}`,
+    title: r.title,
+    subtitle: r.subtitle,
+    sections: r.sections
+  })
 }
 
 init()

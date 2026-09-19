@@ -7,6 +7,7 @@ import type { AppEnv } from '../types'
 import { requireAuth, requireRole } from '../middleware/auth'
 import { hashPassword, signJWT } from '../utils/crypto'
 import { getSecret } from '../middleware/auth'
+import { STUDENT_CATEGORIES } from '../utils/db'
 
 const admin = new Hono<AppEnv>()
 admin.use('*', requireAuth, requireRole('admin'))
@@ -286,7 +287,7 @@ admin.get('/classes/:id/detail', async (c) => {
     .prepare(
       `SELECT fs.*, t.name as trimester_name, t.number as trimester_number
        FROM fee_structures fs JOIN trimesters t ON t.id = fs.trimester_id
-       WHERE fs.class_id = ? ORDER BY t.number`
+       WHERE fs.class_id = ? ORDER BY t.number, fs.categorie`
     )
     .bind(classId)
     .all()
@@ -473,7 +474,10 @@ admin.patch('/students/:id', async (c) => {
   const sid = schoolId(c)
   const fields: string[] = []
   const values: any[] = []
-  for (const key of ['nom', 'post_nom', 'prenom', 'sexe', 'class_id', 'matricule', 'date_naissance', 'parent_contact', 'active']) {
+  if (body.categorie !== undefined && !STUDENT_CATEGORIES.includes(body.categorie)) {
+    return c.json({ error: `Catégorie invalide (autorisées: ${STUDENT_CATEGORIES.join(', ')})` }, 400)
+  }
+  for (const key of ['nom', 'post_nom', 'prenom', 'sexe', 'class_id', 'matricule', 'date_naissance', 'parent_contact', 'active', 'categorie']) {
     if (body[key] !== undefined) {
       fields.push(`${key} = ?`)
       values.push(body[key])
@@ -514,15 +518,19 @@ admin.get('/fee-structures', async (c) => {
 })
 
 admin.post('/fee-structures', async (c) => {
-  const { class_id, trimester_id, montant } = await c.req.json<any>()
+  const { class_id, trimester_id, montant, categorie } = await c.req.json<any>()
   if (!class_id || !trimester_id || montant === undefined) {
     return c.json({ error: 'class_id, trimester_id et montant requis' }, 400)
   }
+  const cat = categorie || 'normal'
+  if (!STUDENT_CATEGORIES.includes(cat)) {
+    return c.json({ error: `Catégorie invalide (autorisées: ${STUDENT_CATEGORIES.join(', ')})` }, 400)
+  }
   await c.env.DB.prepare(
-    `INSERT INTO fee_structures (school_id, class_id, trimester_id, montant) VALUES (?, ?, ?, ?)
-     ON CONFLICT(class_id, trimester_id) DO UPDATE SET montant = excluded.montant, updated_at = CURRENT_TIMESTAMP`
+    `INSERT INTO fee_structures (school_id, class_id, trimester_id, categorie, montant) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(class_id, trimester_id, categorie) DO UPDATE SET montant = excluded.montant, updated_at = CURRENT_TIMESTAMP`
   )
-    .bind(schoolId(c), class_id, trimester_id, montant)
+    .bind(schoolId(c), class_id, trimester_id, cat, montant)
     .run()
   return c.json({ success: true })
 })

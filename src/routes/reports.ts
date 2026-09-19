@@ -5,7 +5,7 @@
 import { Hono } from 'hono'
 import type { AppEnv } from '../types'
 import { requireAuth, requireRole } from '../middleware/auth'
-import { getCurrentSchoolYear } from '../utils/db'
+import { getCurrentSchoolYear, FEE_FOR_STUDENT_SQL } from '../utils/db'
 
 const reports = new Hono<AppEnv>()
 reports.use('*', requireAuth, requireRole('admin'))
@@ -22,15 +22,18 @@ reports.get('/trimester/:id', async (c) => {
   const schoolYear = await db.prepare(`SELECT * FROM school_years WHERE id = ?`).bind(trimester.school_year_id).first<any>()
 
   // 1) Perception des frais scolaires (attendu vs perçu) par classe
+  //    L'attendu tient compte de la catégorie de chaque élève (normal /
+  //    indigent / fils d'enseignant), avec repli sur le tarif 'normal'.
   const classRows = await db
     .prepare(
       `SELECT cl.id as class_id, cl.name as class_name,
         (SELECT COUNT(*) FROM students st WHERE st.class_id = cl.id AND st.active = 1) as student_count,
-        COALESCE(fs.montant, 0) as fee_amount
-       FROM classes cl LEFT JOIN fee_structures fs ON fs.class_id = cl.id AND fs.trimester_id = ?
+        COALESCE((SELECT montant FROM fee_structures WHERE class_id = cl.id AND trimester_id = ? AND categorie = 'normal'), 0) as fee_amount,
+        (SELECT COALESCE(SUM(${FEE_FOR_STUDENT_SQL}), 0) FROM students st WHERE st.class_id = cl.id AND st.active = 1) as attendu
+       FROM classes cl
        WHERE cl.school_year_id = ? ORDER BY cl.name`
     )
-    .bind(trimesterId, trimester.school_year_id)
+    .bind(trimesterId, trimesterId, trimesterId, trimester.school_year_id)
     .all<any>()
 
   let totalAttendu = 0
@@ -43,7 +46,7 @@ reports.get('/trimester/:id', async (c) => {
       )
       .bind(cl.class_id, trimesterId)
       .first<{ total: number }>()
-    const attendu = cl.fee_amount * cl.student_count
+    const attendu = cl.attendu
     const percu = paidRow?.total ?? 0
     totalAttendu += attendu
     totalPercu += percu
@@ -88,13 +91,12 @@ reports.get('/trimester/:id', async (c) => {
   // 4) Liste des dettes du trimestre (top débiteurs)
   const debtsAll = await db
     .prepare(
-      `SELECT st.id, st.nom, st.post_nom, cl.name as class_name,
-        COALESCE(fs.montant,0) - COALESCE((SELECT SUM(p.montant) FROM payments p WHERE p.student_id = st.id AND p.trimester_id = ? AND p.cancelled = 0),0) as balance
+      `SELECT st.id, st.nom, st.post_nom, st.categorie, cl.name as class_name,
+        ${FEE_FOR_STUDENT_SQL} - COALESCE((SELECT SUM(p.montant) FROM payments p WHERE p.student_id = st.id AND p.trimester_id = ? AND p.cancelled = 0),0) as balance
        FROM students st JOIN classes cl ON cl.id = st.class_id
-       LEFT JOIN fee_structures fs ON fs.class_id = cl.id AND fs.trimester_id = ?
        WHERE st.active = 1 AND cl.school_year_id = ?`
     )
-    .bind(trimesterId, trimesterId, trimester.school_year_id)
+    .bind(trimesterId, trimesterId, trimesterId, trimester.school_year_id)
     .all<any>()
   const debtsRow = {
     results: debtsAll.results
@@ -141,10 +143,11 @@ reports.get('/year-summary', async (c) => {
 
     const attenduRow = await db
       .prepare(
-        `SELECT COALESCE(SUM(fs.montant * (SELECT COUNT(*) FROM students st WHERE st.class_id = fs.class_id AND st.active = 1)),0) as total
-         FROM fee_structures fs WHERE fs.trimester_id = ? AND fs.school_id = ?`
+        `SELECT COALESCE(SUM(${FEE_FOR_STUDENT_SQL}), 0) as total
+         FROM students st JOIN classes cl ON cl.id = st.class_id
+         WHERE st.active = 1 AND cl.school_id = ?`
       )
-      .bind(t.id, user.school_id)
+      .bind(t.id, t.id, user.school_id)
       .first<{ total: number }>()
 
     let cashbookFilter = ''

@@ -78,10 +78,12 @@
         <div><h1 class="text-2xl font-bold text-slate-800">Élèves</h1><p class="text-slate-500 text-sm">Liste des élèves par classe (l'ajout et l'import se font depuis l'espace de connexion de chaque classe)</p></div>
         <div class="flex gap-2">
           <select id="students-class-filter" class="px-3 py-2 border rounded-lg text-sm"></select>
+          <button onclick="exportStudentsExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-excel mr-1.5"></i>Excel</button>
+          <button onclick="exportStudentsPdf()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-pdf mr-1.5"></i>PDF</button>
         </div>
       </div>
       <div class="section-card overflow-x-auto">
-        <table class="data-table"><thead><tr><th>Nom</th><th>Post-nom</th><th>Prénom</th><th>Sexe</th><th>Actions</th></tr></thead><tbody id="students-tbody"></tbody></table>
+        <table class="data-table"><thead><tr><th>Nom</th><th>Post-nom</th><th>Prénom</th><th>Sexe</th><th>Catégorie</th><th>Actions</th></tr></thead><tbody id="students-tbody"></tbody></table>
       </div>
     </section>
 
@@ -98,9 +100,16 @@
 
     <!-- FEES -->
     <section id="tab-fees" class="hidden">
-      <div class="mb-6"><h1 class="text-2xl font-bold text-slate-800">Frais scolaires</h1><p class="text-slate-500 text-sm">Fixer le montant des frais par classe et par trimestre</p></div>
+      <div class="flex items-center justify-between mb-6">
+        <div><h1 class="text-2xl font-bold text-slate-800">Frais scolaires</h1><p class="text-slate-500 text-sm">Fixer le montant des frais par classe, par trimestre et par catégorie d'élève (élève normal, indigent, fils d'enseignant)</p></div>
+        <div class="flex gap-2">
+          <button onclick="exportFeesExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-excel mr-1.5"></i>Excel</button>
+          <button onclick="exportFeesPdf()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-pdf mr-1.5"></i>PDF</button>
+        </div>
+      </div>
+      <div class="bg-blue-50 border border-blue-200 text-blue-800 text-xs rounded-lg px-4 py-3 mb-4"><i class="fas fa-circle-info mr-1.5"></i>Si aucun montant n'est fixé pour la catégorie « Indigent » ou « Fils d'enseignant », le tarif « Élève normal » s'applique par défaut.</div>
       <div class="section-card overflow-x-auto">
-        <table class="data-table" id="fees-table"><thead><tr><th>Classe</th><th>1er Trimestre</th><th>2ème Trimestre</th><th>3ème Trimestre</th></tr></thead><tbody id="fees-tbody"></tbody></table>
+        <table class="data-table" id="fees-table"><thead><tr><th>Classe</th><th>Catégorie</th><th>1er Trimestre</th><th>2ème Trimestre</th><th>3ème Trimestre</th></tr></thead><tbody id="fees-tbody"></tbody></table>
       </div>
     </section>
 
@@ -133,12 +142,14 @@
             <div><label class="text-xs font-medium text-slate-600 block mb-1">Jour</label><input type="date" id="perc-date" class="px-3 py-2 border rounded-lg text-sm"></div>
             <button onclick="loadRegistre()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-search mr-2"></i>Afficher</button>
             <button onclick="printAllReceipts()" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-print mr-2"></i>Imprimer tous les reçus du jour</button>
+            <button onclick="exportRegistreExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-excel mr-1.5"></i>Excel</button>
+            <button onclick="exportRegistrePdf()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-pdf mr-1.5"></i>PDF</button>
           </div>
         </div>
         <div id="registre-summary" class="grid grid-cols-3 gap-4 mb-4"></div>
         <div class="section-card overflow-x-auto">
           <table class="data-table">
-            <thead><tr><th>N°</th><th>Nom et Post-nom</th><th>Montant du jour</th><th>Reçu</th><th>Action</th></tr></thead>
+            <thead><tr><th>N°</th><th>Nom et Post-nom</th><th>Catégorie</th><th>Montant du jour</th><th>Reçu</th><th>Action</th></tr></thead>
             <tbody id="registre-tbody"></tbody>
           </table>
         </div>
@@ -166,10 +177,14 @@
             <h1 id="debts-detail-title" class="text-2xl font-bold text-slate-800">Classe</h1>
             <p class="text-slate-500 text-sm">Élèves n'ayant pas soldé leurs frais scolaires</p>
           </div>
+          <div class="flex gap-2">
+            <button onclick="exportDebtsExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-excel mr-1.5"></i>Excel</button>
+            <button onclick="exportDebtsPdf()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-pdf mr-1.5"></i>PDF</button>
+          </div>
         </div>
         <div id="debts-summary" class="grid grid-cols-2 gap-4 mb-4"></div>
         <div class="section-card overflow-x-auto">
-          <table class="data-table"><thead><tr><th>Nom et Post-nom</th><th>Frais fixé</th><th>Payé</th><th>Dette restante</th></tr></thead><tbody id="debts-tbody"></tbody></table>
+          <table class="data-table"><thead><tr><th>Nom et Post-nom</th><th>Catégorie</th><th>Frais fixé</th><th>Payé</th><th>Dette restante</th></tr></thead><tbody id="debts-tbody"></tbody></table>
         </div>
       </div>
     </section>
@@ -187,7 +202,11 @@
             </div>
             <button onclick="loadBudget()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-search mr-2"></i>Afficher</button>
           </div>
-          <button onclick="showAddPrevisionModal()" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-plus mr-2"></i>Définir une prévision</button>
+          <div class="flex gap-2">
+            <button onclick="exportBudgetExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-excel mr-1.5"></i>Excel</button>
+            <button onclick="exportBudgetPdf()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-pdf mr-1.5"></i>PDF</button>
+            <button onclick="showAddPrevisionModal()" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-plus mr-2"></i>Définir une prévision</button>
+          </div>
         </div>
       </div>
       <div class="section-card overflow-x-auto">
@@ -200,6 +219,8 @@
       <div class="flex items-center justify-between mb-6">
         <div><h1 class="text-2xl font-bold text-slate-800">Livre de caisse</h1><p class="text-slate-500 text-sm">Entrées, sorties et solde cumulé</p></div>
         <div class="flex flex-wrap gap-2">
+          <button onclick="exportCashbookExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2.5 rounded-lg text-sm font-semibold"><i class="fas fa-file-excel mr-1.5"></i>Excel</button>
+          <button onclick="exportCashbookPdf()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-2.5 rounded-lg text-sm font-semibold"><i class="fas fa-file-pdf mr-1.5"></i>PDF</button>
           <button onclick="printCashbook()" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow"><i class="fas fa-print mr-2"></i>Imprimer le livre de caisse</button>
           <button onclick="showAddCashbookModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold"><i class="fas fa-plus mr-2"></i>Nouvelle opération</button>
         </div>
@@ -223,7 +244,13 @@
 
     <!-- REPORTS -->
     <section id="tab-reports" class="hidden">
-      <div class="mb-6"><h1 class="text-2xl font-bold text-slate-800">Rapport financier</h1><p class="text-slate-500 text-sm">Synthèse par trimestre (recettes, dépenses, recouvrement)</p></div>
+      <div class="flex items-center justify-between mb-6">
+        <div><h1 class="text-2xl font-bold text-slate-800">Rapport financier</h1><p class="text-slate-500 text-sm">Synthèse par trimestre (recettes, dépenses, recouvrement)</p></div>
+        <div class="flex gap-2">
+          <button onclick="exportReportExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-excel mr-1.5"></i>Excel</button>
+          <button onclick="exportReportPdf()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-pdf mr-1.5"></i>PDF</button>
+        </div>
+      </div>
       <div class="flex gap-2 mb-6" id="report-tabs"></div>
       <div id="report-content"></div>
     </section>
@@ -231,7 +258,11 @@
   </main>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <script src="/static/js/api.js"></script>
+<script src="/static/js/export.js"></script>
 <script src="/static/js/admin.js"></script>
 </body>
 </html>
