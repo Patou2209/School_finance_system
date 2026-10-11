@@ -46,6 +46,9 @@ function setupTabs() {
         document.getElementById('perception-classes-view').classList.remove('hidden')
         await loadPerceptionClasses()
       }
+      if (link.dataset.tab === 'rapport-percepteur') {
+        await populateRapportPercepteurSelector()
+      }
       if (link.dataset.tab === 'debts') {
         currentDebtsClass = null
         document.getElementById('debts-detail-view').classList.add('hidden')
@@ -470,10 +473,63 @@ async function loadStudents() {
       <td>${s.sexe || '—'}</td>
       <td>${categoryBadge(s.categorie)}</td>
       <td class="space-x-2 whitespace-nowrap">
+        <button onclick="showEditStudentModal(${s.id})" class="text-amber-600 hover:underline text-xs font-semibold" title="Modifier l'élève"><i class="fas fa-pen"></i> Modifier</button>
         <button onclick="showEditStudentCategoryModal(${s.id}, '${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}', '${s.categorie || 'normal'}')" class="text-blue-600 hover:underline text-xs font-semibold"><i class="fas fa-tag"></i> Catégorie</button>
-        <button onclick="deleteStudent(${s.id})" class="text-red-600 hover:underline text-xs font-semibold"><i class="fas fa-trash"></i></button>
+        <button onclick="deleteStudent(${s.id})" class="text-red-600 hover:underline text-xs font-semibold" title="Supprimer l'élève"><i class="fas fa-trash"></i></button>
       </td>
     </tr>`).join('') || '<tr><td colspan="6" class="text-center text-slate-400 py-6">Aucun élève. L\'ajout et l\'import se font depuis l\'espace de connexion de chaque classe.</td></tr>'
+}
+
+function showEditStudentModal(studentId) {
+  const s = studentsCache.find(x => x.id === studentId)
+  if (!s) return
+  openModal(`
+    <div class="p-6">
+      <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fas fa-pen mr-2 text-amber-600"></i>Modifier l'élève</h3>
+      <p class="text-sm text-slate-500 mb-4">${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}</p>
+      <form id="edit-student-form" class="space-y-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div><label class="text-xs font-medium text-slate-600">Nom *</label><input required id="es-nom" value="${escapeHtml(s.nom)}" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+          <div><label class="text-xs font-medium text-slate-600">Post-nom *</label><input required id="es-postnom" value="${escapeHtml(s.post_nom)}" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+          <div><label class="text-xs font-medium text-slate-600">Prénom</label><input id="es-prenom" value="${escapeHtml(s.prenom || '')}" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+          <div><label class="text-xs font-medium text-slate-600">Sexe</label>
+            <select id="es-sexe" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
+              <option value="" ${!s.sexe ? 'selected' : ''}>—</option>
+              <option value="M" ${s.sexe === 'M' ? 'selected' : ''}>M</option>
+              <option value="F" ${s.sexe === 'F' ? 'selected' : ''}>F</option>
+            </select>
+          </div>
+          <div><label class="text-xs font-medium text-slate-600">Classe</label>
+            <select id="es-classe" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
+              ${classesCache.map(cl => `<option value="${cl.id}" ${cl.id === s.class_id ? 'selected' : ''}>${escapeHtml(cl.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div><label class="text-xs font-medium text-slate-600">Catégorie</label>
+            <select id="es-categorie" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">${categoryOptions(s.categorie || 'normal')}</select>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100">Annuler</button>
+          <button type="submit" class="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">Enregistrer</button>
+        </div>
+      </form>
+    </div>`)
+  document.getElementById('edit-student-form').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    try {
+      await Api.patch(`/api/admin/students/${studentId}`, {
+        nom: document.getElementById('es-nom').value.trim(),
+        post_nom: document.getElementById('es-postnom').value.trim(),
+        prenom: document.getElementById('es-prenom').value.trim() || null,
+        sexe: document.getElementById('es-sexe').value || null,
+        class_id: parseInt(document.getElementById('es-classe').value),
+        categorie: document.getElementById('es-categorie').value
+      })
+      toast('Élève modifié', 'success')
+      closeModal()
+      await loadStudents()
+    } catch (err) { toast(err.message, 'error') }
+  })
 }
 
 function showEditStudentCategoryModal(studentId, studentName, currentCat) {
@@ -623,7 +679,11 @@ async function loadFeesTable() {
   const { fee_structures } = await Api.get(`/api/admin/fee-structures?school_year_id=${currentYear.id}`)
 
   const feeMap = {}
-  fee_structures.forEach(f => { feeMap[`${f.class_id}-${f.trimester_id}-${f.categorie || 'normal'}`] = f.montant })
+  const feeIdMap = {}
+  fee_structures.forEach(f => {
+    feeMap[`${f.class_id}-${f.trimester_id}-${f.categorie || 'normal'}`] = f.montant
+    feeIdMap[`${f.class_id}-${f.trimester_id}-${f.categorie || 'normal'}`] = f.id
+  })
 
   const CATS = ['normal', 'indigent', 'fils_enseignant']
   feesExportData = []
@@ -641,11 +701,21 @@ async function loadFeesTable() {
         <div class="flex items-center gap-1">
           <input type="number" min="0" step="0.01" value="${feeMap[`${cl.id}-${t.id}-${cat}`] ?? ''}" id="fee-${cl.id}-${t.id}-${cat}" class="w-28 px-2 py-1 border rounded text-sm" placeholder="${cat === 'normal' ? 'Montant' : 'Défaut: normal'}">
           <button onclick="saveFee(${cl.id}, ${t.id}, '${cat}')" class="text-blue-600 text-xs" title="Enregistrer"><i class="fas fa-save"></i></button>
+          ${feeIdMap[`${cl.id}-${t.id}-${cat}`] !== undefined ? `<button onclick="deleteFee(${feeIdMap[`${cl.id}-${t.id}-${cat}`]})" class="text-red-500 text-xs" title="Supprimer ce frais"><i class="fas fa-trash"></i></button>` : ''}
         </div>
       </td>`).join('')}
     </tr>`
     }).join('')
   ).join('') || '<tr><td colspan="5" class="text-center text-slate-400 py-6">Aucune classe</td></tr>'
+}
+
+async function deleteFee(feeId) {
+  if (!confirm('Supprimer ce frais ? Les élèves de cette catégorie reviendront au tarif « normal » (ou à 0 si catégorie normale).')) return
+  try {
+    await Api.del(`/api/admin/fee-structures/${feeId}`)
+    toast('Frais supprimé', 'success')
+    await loadFeesTable()
+  } catch (err) { toast(err.message, 'error') }
 }
 
 async function saveFee(classId, trimesterId, categorie) {
@@ -655,6 +725,7 @@ async function saveFee(classId, trimesterId, categorie) {
   try {
     await Api.post('/api/admin/fee-structures', { class_id: classId, trimester_id: trimesterId, montant, categorie })
     toast(`Frais enregistré (${categoryLabel(categorie)})`, 'success')
+    await loadFeesTable()
   } catch (err) { toast(err.message, 'error') }
 }
 
@@ -762,8 +833,10 @@ async function loadRegistre() {
       <td>${s.receipt_number ? `<span class="badge badge-green">${escapeHtml(s.receipt_number)}</span>${s.payments_count_today > 1 ? ` <span class="badge badge-blue">x${s.payments_count_today}</span>` : ''}` : '—'}</td>
       <td class="space-x-2 whitespace-nowrap">
         ${s.payment_id
-          ? `<button onclick="printReceipt(${s.payment_id})" class="text-blue-600 hover:underline text-xs font-semibold"><i class="fas fa-print"></i> Reçu</button>
-             <button onclick="cancelPayment(${s.payment_id})" class="text-red-600 hover:underline text-xs font-semibold"><i class="fas fa-rotate-left"></i> Annuler</button>`
+          ? `<button onclick="printReceipt(${s.payment_id})" class="text-blue-600 hover:underline text-xs font-semibold" title="Imprimer le reçu"><i class="fas fa-print"></i> Reçu</button>
+             <button onclick="showEditPaymentModal(${s.payment_id}, ${s.montant_jour}, '${data.date}', loadRegistre)" class="text-amber-600 hover:underline text-xs font-semibold" title="Modifier le reçu"><i class="fas fa-pen"></i></button>
+             <button onclick="deletePayment(${s.payment_id}, loadRegistre)" class="text-red-600 hover:underline text-xs font-semibold" title="Supprimer le reçu"><i class="fas fa-trash"></i></button>
+             <button onclick="cancelPayment(${s.payment_id})" class="text-slate-500 hover:underline text-xs font-semibold" title="Annuler (conserve la trace)"><i class="fas fa-rotate-left"></i></button>`
           : ''}
         <button onclick="showPayModal(${s.id}, '${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}', ${trimesterId})" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-semibold"><i class="fas fa-hand-holding-dollar mr-1"></i>Percevoir</button>
       </td>
@@ -824,7 +897,11 @@ async function showStudentReceipts(studentId, studentName, trimesterId) {
       <td>${fmtDate(p.date_paiement)}</td>
       <td>${fmtMoney(p.montant, currentSchool?.currency)}</td>
       <td><span class="badge badge-green">${escapeHtml(p.receipt_number)}</span></td>
-      <td><button onclick="printReceipt(${p.id})" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs font-semibold"><i class="fas fa-print mr-1"></i>Imprimer le reçu</button></td>
+      <td class="space-x-1 whitespace-nowrap">
+        <button onclick="printReceipt(${p.id})" class="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded text-xs font-semibold" title="Imprimer"><i class="fas fa-print"></i></button>
+        <button onclick="closeModal(); showEditPaymentModal(${p.id}, ${p.montant}, '${p.date_paiement}', loadRegistre)" class="bg-amber-500 hover:bg-amber-600 text-white px-2.5 py-1 rounded text-xs font-semibold" title="Modifier"><i class="fas fa-pen"></i></button>
+        <button onclick="closeModal(); deletePayment(${p.id}, loadRegistre)" class="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded text-xs font-semibold" title="Supprimer"><i class="fas fa-trash"></i></button>
+      </td>
     </tr>`).join('') || '<tr><td colspan="4" class="text-center text-slate-400 py-6">Aucun paiement enregistré ce trimestre</td></tr>'
 
   openModal(`
@@ -896,6 +973,202 @@ async function cancelPayment(paymentId) {
     toast('Paiement annulé', 'success')
     await loadRegistre()
   } catch (err) { toast(err.message, 'error') }
+}
+
+// ---------------------------------------------------------------------------
+// MODIFICATION / SUPPRESSION DES REÇUS (admin uniquement)
+// ---------------------------------------------------------------------------
+function showEditPaymentModal(paymentId, montant, datePaiement, onDone) {
+  openModal(`
+    <div class="p-6">
+      <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fas fa-pen mr-2 text-blue-600"></i>Modifier le reçu</h3>
+      <p class="text-sm text-slate-500 mb-4">Corriger le montant ou la date de ce paiement</p>
+      <form id="edit-pay-form" class="space-y-3">
+        <div><label class="text-xs font-medium text-slate-600">Montant *</label><input required type="number" step="0.01" min="0.01" id="edit-pay-amount" value="${montant}" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+        <div><label class="text-xs font-medium text-slate-600">Date de paiement *</label><input required type="date" id="edit-pay-date" value="${datePaiement}" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100">Annuler</button>
+          <button type="submit" class="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">Enregistrer</button>
+        </div>
+      </form>
+    </div>`)
+  document.getElementById('edit-pay-form').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    try {
+      await Api.patch(`/api/perception/payments/${paymentId}`, {
+        montant: parseFloat(document.getElementById('edit-pay-amount').value),
+        date_paiement: document.getElementById('edit-pay-date').value
+      })
+      toast('Reçu modifié', 'success')
+      closeModal()
+      if (onDone) await onDone()
+    } catch (err) { toast(err.message, 'error') }
+  })
+}
+
+async function deletePayment(paymentId, onDone) {
+  if (!confirm('SUPPRIMER définitivement ce reçu/paiement ? Cette action est irréversible et met à jour le livre de caisse.')) return
+  try {
+    await Api.del(`/api/perception/payments/${paymentId}`)
+    toast('Reçu supprimé', 'success')
+    if (onDone) await onDone()
+  } catch (err) { toast(err.message, 'error') }
+}
+
+// ---------------------------------------------------------------------------
+// RAPPORT JOURNALIER PAR PERCEPTEUR
+// ---------------------------------------------------------------------------
+let rapportPercepteurCache = null
+
+async function populateRapportPercepteurSelector() {
+  const { staff } = await Api.get('/api/admin/staff?role=percepteur')
+  document.getElementById('rp-percepteur').innerHTML =
+    staff.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('') ||
+    '<option value="">Aucun percepteur</option>'
+  if (!document.getElementById('rp-date').value) document.getElementById('rp-date').value = todayStr()
+}
+
+async function loadRapportPercepteur() {
+  const percepteurId = document.getElementById('rp-percepteur').value
+  const date = document.getElementById('rp-date').value || todayStr()
+  if (!percepteurId) return toast('Sélectionnez un percepteur', 'error')
+
+  const data = await Api.get(`/api/perception/rapport-percepteur?percepteur_id=${percepteurId}&date=${date}`)
+  rapportPercepteurCache = data
+  const cur = currentSchool?.currency
+
+  document.getElementById('rp-summary').innerHTML = `
+    <div class="stat-card"><p class="text-xs text-slate-500 mb-1">Percepteur</p><p class="text-lg font-bold text-slate-800">${escapeHtml(data.percepteur.name)}</p></div>
+    <div class="stat-card"><p class="text-xs text-slate-500 mb-1">Paiements perçus — ${fmtDate(data.date)}</p><p class="text-xl font-bold text-slate-800">${data.count}</p></div>
+    <div class="stat-card"><p class="text-xs text-slate-500 mb-1">TOTAL PERÇU</p><p class="text-xl font-bold text-green-600">${fmtMoney(data.total, cur)}</p></div>
+  `
+
+  if (!data.classes.length) {
+    document.getElementById('rp-content').innerHTML = '<div class="section-card text-center text-slate-400 py-10">Aucune perception enregistrée par ce percepteur à cette date</div>'
+    return
+  }
+
+  document.getElementById('rp-content').innerHTML = data.classes.map(cl => `
+    <div class="section-card mb-4 overflow-x-auto">
+      <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <h3 class="font-bold text-slate-800"><i class="fas fa-chalkboard mr-2 text-blue-600"></i>${escapeHtml(cl.class_name)}</h3>
+        <span class="badge badge-green">Total classe : ${fmtMoney(cl.total, cur)} — ${cl.count} paiement(s)</span>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>N°</th><th>Élève</th><th>Catégorie</th><th>Trimestre</th><th>Montant</th><th>Reçu</th><th>Actions</th></tr></thead>
+        <tbody>
+          ${cl.payments.map((p, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td class="font-medium">${escapeHtml(p.nom)} ${escapeHtml(p.post_nom)}</td>
+            <td>${categoryBadge(p.categorie)}</td>
+            <td>${escapeHtml(p.trimester_name)}</td>
+            <td class="font-semibold">${fmtMoney(p.montant, cur)}</td>
+            <td><span class="badge badge-green">${escapeHtml(p.receipt_number)}</span></td>
+            <td class="space-x-2 whitespace-nowrap">
+              <button onclick="printReceipt(${p.id})" class="text-blue-600 hover:underline text-xs font-semibold" title="Imprimer le reçu"><i class="fas fa-print"></i></button>
+              <button onclick="showEditPaymentModal(${p.id}, ${p.montant}, '${p.date_paiement}', loadRapportPercepteur)" class="text-amber-600 hover:underline text-xs font-semibold" title="Modifier"><i class="fas fa-pen"></i></button>
+              <button onclick="deletePayment(${p.id}, loadRapportPercepteur)" class="text-red-600 hover:underline text-xs font-semibold" title="Supprimer"><i class="fas fa-trash"></i></button>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+        <tfoot><tr><td colspan="4">TOTAL ${escapeHtml(cl.class_name)}</td><td colspan="3" class="text-green-700">${fmtMoney(cl.total, cur)}</td></tr></tfoot>
+      </table>
+    </div>`).join('') + `
+    <div class="section-card bg-slate-800 text-white">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <span class="font-bold"><i class="fas fa-coins mr-2 text-amber-400"></i>TOTAL GÉNÉRAL PERÇU PAR ${escapeHtml(data.percepteur.name).toUpperCase()} — ${fmtDate(data.date)}</span>
+        <span class="text-xl font-extrabold text-green-400">${fmtMoney(data.total, cur)}</span>
+      </div>
+    </div>`
+}
+
+function rapportPercepteurRows() {
+  const cur = currentSchool?.currency
+  const rows = []
+  for (const cl of rapportPercepteurCache.classes) {
+    cl.payments.forEach((p, i) => rows.push({
+      classe: cl.class_name,
+      num: i + 1,
+      eleve: `${p.nom} ${p.post_nom}`,
+      cat: categoryLabel(p.categorie),
+      trimestre: p.trimester_name,
+      montant: fmtMoney(p.montant, cur),
+      recu: p.receipt_number
+    }))
+    rows.push({ classe: cl.class_name, num: '', eleve: `TOTAL ${cl.class_name}`, cat: '', trimestre: '', montant: fmtMoney(cl.total, cur), recu: `${cl.count} paiement(s)` })
+  }
+  rows.push({ classe: '', num: '', eleve: 'TOTAL GÉNÉRAL', cat: '', trimestre: '', montant: fmtMoney(rapportPercepteurCache.total, cur), recu: `${rapportPercepteurCache.count} paiement(s)` })
+  return rows
+}
+
+const RP_EXPORT_COLUMNS = [
+  { header: 'Classe', key: 'classe' },
+  { header: 'N°', key: 'num' },
+  { header: 'Élève', key: 'eleve' },
+  { header: 'Catégorie', key: 'cat' },
+  { header: 'Trimestre', key: 'trimestre' },
+  { header: 'Montant', key: 'montant' },
+  { header: 'Reçu', key: 'recu' }
+]
+
+function exportRapportPercepteurExcel() {
+  if (!rapportPercepteurCache) return toast('Affichez d\'abord un rapport', 'error')
+  const d = rapportPercepteurCache
+  exportTableToExcel({
+    filename: `rapport_percepteur_${d.percepteur.name.replace(/\s+/g, '_')}_${d.date}`,
+    sheetName: 'Rapport percepteur',
+    title: `Rapport journalier — ${d.percepteur.name} — ${fmtDate(d.date)} — Total perçu : ${fmtMoney(d.total, currentSchool?.currency)}`,
+    columns: RP_EXPORT_COLUMNS,
+    rows: rapportPercepteurRows()
+  })
+}
+
+function exportRapportPercepteurPdf() {
+  if (!rapportPercepteurCache) return toast('Affichez d\'abord un rapport', 'error')
+  const d = rapportPercepteurCache
+  exportTableToPdf({
+    filename: `rapport_percepteur_${d.percepteur.name.replace(/\s+/g, '_')}_${d.date}`,
+    title: `Rapport journalier par percepteur — ${d.percepteur.name}`,
+    subtitle: `${currentSchool ? currentSchool.name : ''} — ${fmtDate(d.date)} — TOTAL PERÇU : ${fmtMoney(d.total, currentSchool?.currency)}`,
+    columns: RP_EXPORT_COLUMNS,
+    rows: rapportPercepteurRows()
+  })
+}
+
+function printRapportPercepteur() {
+  if (!rapportPercepteurCache) return toast('Affichez d\'abord un rapport', 'error')
+  const d = rapportPercepteurCache
+  const cur = currentSchool?.currency
+  const win = window.open('', '_blank')
+  win.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Rapport percepteur — ${escapeHtml(d.percepteur.name)} — ${d.date}</title>
+    <style>
+      body { font-family: 'Segoe UI', Arial, sans-serif; margin: 2rem; color: #1e293b; font-size: 13px; }
+      h1 { font-size: 18px; margin-bottom: 2px; } h2 { font-size: 14px; margin: 18px 0 6px; }
+      .sub { color: #64748b; font-size: 12px; margin-bottom: 14px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+      th, td { border: 1px solid #cbd5e1; padding: 5px 8px; text-align: left; }
+      th { background: #f1f5f9; font-size: 11px; text-transform: uppercase; }
+      .total-row td { font-weight: bold; background: #f8fafc; }
+      .grand-total { margin-top: 16px; padding: 12px; border: 2px solid #1e293b; font-weight: bold; font-size: 15px; display: flex; justify-content: space-between; }
+      @media print { body { margin: 0.8cm; } }
+    </style></head><body>
+    <h1>${escapeHtml(currentSchool ? currentSchool.name : '')} — Rapport journalier par percepteur</h1>
+    <p class="sub">Percepteur : <b>${escapeHtml(d.percepteur.name)}</b> &nbsp;|&nbsp; Date : <b>${fmtDate(d.date)}</b> &nbsp;|&nbsp; ${d.count} paiement(s)</p>
+    ${d.classes.map(cl => `
+      <h2>Classe : ${escapeHtml(cl.class_name)}</h2>
+      <table>
+        <thead><tr><th>N°</th><th>Élève</th><th>Catégorie</th><th>Trimestre</th><th>Montant</th><th>Reçu</th></tr></thead>
+        <tbody>
+          ${cl.payments.map((p, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(p.nom)} ${escapeHtml(p.post_nom)}</td><td>${categoryLabel(p.categorie)}</td><td>${escapeHtml(p.trimester_name)}</td><td>${fmtMoney(p.montant, cur)}</td><td>${escapeHtml(p.receipt_number)}</td></tr>`).join('')}
+          <tr class="total-row"><td colspan="4">TOTAL ${escapeHtml(cl.class_name)}</td><td colspan="2">${fmtMoney(cl.total, cur)}</td></tr>
+        </tbody>
+      </table>`).join('')}
+    <div class="grand-total"><span>TOTAL GÉNÉRAL PERÇU</span><span>${fmtMoney(d.total, cur)}</span></div>
+    <p class="sub" style="margin-top:24px">Signature du percepteur : ________________________ &nbsp;&nbsp;&nbsp; Visa de la direction : ________________________</p>
+    <script>window.onload = () => window.print()<\/script>
+    </body></html>`)
+  win.document.close()
 }
 
 function printReceipt(paymentId) {

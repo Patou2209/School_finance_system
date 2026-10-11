@@ -13,7 +13,7 @@
 
 <div class="flex min-h-screen">
   <!-- Sidebar -->
-  <aside class="w-64 bg-slate-900 text-white flex flex-col fixed inset-y-0 left-0">
+  <aside class="app-sidebar w-64 bg-slate-900 text-white flex flex-col fixed inset-y-0 left-0 overflow-y-auto">
     <div class="p-5 border-b border-white/10">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center"><i class="fas fa-shield-halved"></i></div>
@@ -34,7 +34,7 @@
   </aside>
 
   <!-- Main -->
-  <main class="flex-1 ml-64 p-8">
+  <main class="app-main flex-1 ml-64 p-8">
     <!-- DASHBOARD -->
     <section id="tab-dashboard">
       <h1 class="text-2xl font-bold text-slate-800 mb-1">Tableau de bord général</h1>
@@ -44,7 +44,7 @@
 
     <!-- SCHOOLS -->
     <section id="tab-schools" class="hidden">
-      <div class="flex items-center justify-between mb-6">
+      <div class="section-header-flex flex items-center justify-between mb-6">
         <div>
           <h1 class="text-2xl font-bold text-slate-800">Écoles</h1>
           <p class="text-slate-500 text-sm">Créer et administrer les écoles de la plateforme</p>

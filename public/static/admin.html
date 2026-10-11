@@ -12,7 +12,7 @@
 <div id="toast-container"></div>
 
 <div class="flex min-h-screen">
-  <aside class="w-64 bg-slate-900 text-white flex flex-col fixed inset-y-0 left-0 overflow-y-auto">
+  <aside class="app-sidebar w-64 bg-slate-900 text-white flex flex-col fixed inset-y-0 left-0 overflow-y-auto">
     <div class="p-5 border-b border-white/10">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center"><i class="fas fa-school"></i></div>
@@ -30,6 +30,7 @@
       <div class="nav-link" data-tab="staff"><i class="fas fa-users w-4"></i>Personnel</div>
       <div class="nav-link" data-tab="fees"><i class="fas fa-money-bill w-4"></i>Frais scolaires</div>
       <div class="nav-link" data-tab="perception"><i class="fas fa-hand-holding-dollar w-4"></i>Perception</div>
+      <div class="nav-link" data-tab="rapport-percepteur"><i class="fas fa-user-clock w-4"></i>Rapport percepteur</div>
       <div class="nav-link" data-tab="debts"><i class="fas fa-triangle-exclamation w-4"></i>Listes de dettes</div>
       <div class="nav-link" data-tab="budget"><i class="fas fa-chart-pie w-4"></i>Prévision budgétaire</div>
       <div class="nav-link" data-tab="cashbook"><i class="fas fa-book w-4"></i>Livre de caisse</div>
@@ -41,7 +42,7 @@
     </div>
   </aside>
 
-  <main class="flex-1 ml-64 p-8">
+  <main class="app-main flex-1 ml-64 p-8">
 
     <!-- DASHBOARD -->
     <section id="tab-dashboard">
@@ -52,7 +53,7 @@
 
     <!-- YEARS -->
     <section id="tab-years" class="hidden">
-      <div class="flex items-center justify-between mb-6">
+      <div class="section-header-flex flex items-center justify-between mb-6">
         <div><h1 class="text-2xl font-bold text-slate-800">Années scolaires</h1><p class="text-slate-500 text-sm">Gérer les années scolaires et leurs 3 trimestres</p></div>
         <button onclick="showCreateYearModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold"><i class="fas fa-plus mr-2"></i>Nouvelle année</button>
       </div>
@@ -63,7 +64,7 @@
 
     <!-- CLASSES -->
     <section id="tab-classes" class="hidden">
-      <div class="flex items-center justify-between mb-6">
+      <div class="section-header-flex flex items-center justify-between mb-6">
         <div><h1 class="text-2xl font-bold text-slate-800">Classes</h1><p class="text-slate-500 text-sm">Créer les classes et affecter enseignants / percepteurs</p></div>
         <button onclick="showCreateClassModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold"><i class="fas fa-plus mr-2"></i>Nouvelle classe</button>
       </div>
@@ -74,7 +75,7 @@
 
     <!-- STUDENTS -->
     <section id="tab-students" class="hidden">
-      <div class="flex items-center justify-between mb-6">
+      <div class="section-header-flex flex items-center justify-between mb-6">
         <div><h1 class="text-2xl font-bold text-slate-800">Élèves</h1><p class="text-slate-500 text-sm">Liste des élèves par classe (l'ajout et l'import se font depuis l'espace de connexion de chaque classe)</p></div>
         <div class="flex gap-2">
           <select id="students-class-filter" class="px-3 py-2 border rounded-lg text-sm"></select>
@@ -89,7 +90,7 @@
 
     <!-- STAFF -->
     <section id="tab-staff" class="hidden">
-      <div class="flex items-center justify-between mb-6">
+      <div class="section-header-flex flex items-center justify-between mb-6">
         <div><h1 class="text-2xl font-bold text-slate-800">Personnel</h1><p class="text-slate-500 text-sm">Enseignants et percepteurs de l'école</p></div>
         <button onclick="showCreateStaffModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold"><i class="fas fa-plus mr-2"></i>Ajouter du personnel</button>
       </div>
@@ -100,7 +101,7 @@
 
     <!-- FEES -->
     <section id="tab-fees" class="hidden">
-      <div class="flex items-center justify-between mb-6">
+      <div class="section-header-flex flex items-center justify-between mb-6">
         <div><h1 class="text-2xl font-bold text-slate-800">Frais scolaires</h1><p class="text-slate-500 text-sm">Fixer le montant des frais par classe, par trimestre et par catégorie d'élève (élève normal, indigent, fils d'enseignant)</p></div>
         <div class="flex gap-2">
           <button onclick="exportFeesExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-excel mr-1.5"></i>Excel</button>
@@ -129,7 +130,7 @@
 
       <!-- vue 2 = détail d'une classe (registre + impression) -->
       <div id="perception-detail-view" class="hidden">
-        <div class="flex items-center justify-between mb-6">
+        <div class="section-header-flex flex items-center justify-between mb-6">
           <div>
             <button onclick="closePerceptionDetail()" class="text-blue-600 hover:underline text-sm font-semibold mb-2"><i class="fas fa-arrow-left mr-1"></i>Retour aux classes</button>
             <h1 id="perception-detail-title" class="text-2xl font-bold text-slate-800">Classe</h1>
@@ -156,6 +157,27 @@
       </div>
     </section>
 
+    <!-- RAPPORT JOURNALIER PAR PERCEPTEUR -->
+    <section id="tab-rapport-percepteur" class="hidden">
+      <div class="section-header-flex flex items-center justify-between mb-6">
+        <div><h1 class="text-2xl font-bold text-slate-800">Rapport journalier par percepteur</h1><p class="text-slate-500 text-sm">Total perçu par un percepteur à une date donnée, détaillé par classe</p></div>
+        <div class="flex gap-2">
+          <button onclick="printRapportPercepteur()" class="bg-slate-800 hover:bg-slate-900 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-print mr-1.5"></i>Imprimer</button>
+          <button onclick="exportRapportPercepteurExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-excel mr-1.5"></i>Excel</button>
+          <button onclick="exportRapportPercepteurPdf()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-pdf mr-1.5"></i>PDF</button>
+        </div>
+      </div>
+      <div class="section-card mb-6">
+        <div class="flex flex-wrap gap-3 items-end">
+          <div><label class="text-xs font-medium text-slate-600 block mb-1">Percepteur</label><select id="rp-percepteur" class="px-3 py-2 border rounded-lg text-sm w-56"></select></div>
+          <div><label class="text-xs font-medium text-slate-600 block mb-1">Date</label><input type="date" id="rp-date" class="px-3 py-2 border rounded-lg text-sm"></div>
+          <button onclick="loadRapportPercepteur()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-search mr-2"></i>Afficher</button>
+        </div>
+      </div>
+      <div id="rp-summary" class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4"></div>
+      <div id="rp-content"></div>
+    </section>
+
     <!-- DEBTS : vue 1 = cartes KPI par classe -->
     <section id="tab-debts" class="hidden">
       <div id="debts-classes-view">
@@ -171,7 +193,7 @@
 
       <!-- vue 2 = détail des dettes d'une classe -->
       <div id="debts-detail-view" class="hidden">
-        <div class="flex items-center justify-between mb-6">
+        <div class="section-header-flex flex items-center justify-between mb-6">
           <div>
             <button onclick="closeDebtsDetail()" class="text-blue-600 hover:underline text-sm font-semibold mb-2"><i class="fas fa-arrow-left mr-1"></i>Retour aux classes</button>
             <h1 id="debts-detail-title" class="text-2xl font-bold text-slate-800">Classe</h1>
@@ -216,7 +238,7 @@
 
     <!-- CASHBOOK -->
     <section id="tab-cashbook" class="hidden">
-      <div class="flex items-center justify-between mb-6">
+      <div class="section-header-flex flex items-center justify-between mb-6">
         <div><h1 class="text-2xl font-bold text-slate-800">Livre de caisse</h1><p class="text-slate-500 text-sm">Entrées, sorties et solde cumulé</p></div>
         <div class="flex flex-wrap gap-2">
           <button onclick="exportCashbookExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2.5 rounded-lg text-sm font-semibold"><i class="fas fa-file-excel mr-1.5"></i>Excel</button>
@@ -244,7 +266,7 @@
 
     <!-- REPORTS -->
     <section id="tab-reports" class="hidden">
-      <div class="flex items-center justify-between mb-6">
+      <div class="section-header-flex flex items-center justify-between mb-6">
         <div><h1 class="text-2xl font-bold text-slate-800">Rapport financier</h1><p class="text-slate-500 text-sm">Synthèse par trimestre (recettes, dépenses, recouvrement)</p></div>
         <div class="flex gap-2">
           <button onclick="exportReportExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-excel mr-1.5"></i>Excel</button>

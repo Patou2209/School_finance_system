@@ -149,3 +149,82 @@ table.data-table thead.cashbook-head th.text-right { text-align: right; }
   background: #fff; color: #b45309; border-radius: 0.4rem; padding: 0.25rem 0.75rem;
   font-size: 0.8rem; font-weight: 700; cursor: pointer;
 }
+
+/* ============================================================================
+   RESPONSIVE : sidebar mobile + adaptations tablette/téléphone
+   Les dashboards utilisent <aside class="app-sidebar"> et <main class="app-main">
+   ============================================================================ */
+
+/* Bouton hamburger mobile (header fixe) */
+#mobile-topbar {
+  display: none;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 90;
+  background: #0f172a; color: #fff;
+  align-items: center; gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+#mobile-topbar .burger {
+  width: 2.4rem; height: 2.4rem; border-radius: 0.6rem;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.1); cursor: pointer; font-size: 1rem;
+}
+#mobile-topbar .topbar-title { font-weight: 700; font-size: 0.95rem; }
+
+/* Overlay derrière la sidebar mobile */
+#sidebar-overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 94;
+  background: rgba(15,23,42,0.55);
+}
+#sidebar-overlay.show { display: block; }
+
+@media (max-width: 1023px) {
+  /* Sidebar devient un tiroir coulissant */
+  aside.app-sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    z-index: 95;
+    width: 16rem !important;
+  }
+  aside.app-sidebar.open { transform: translateX(0); }
+
+  /* Le contenu principal prend toute la largeur, avec marge pour le topbar */
+  main.app-main {
+    margin-left: 0 !important;
+    padding: 1rem !important;
+    padding-top: 4.4rem !important;
+  }
+
+  #mobile-topbar { display: flex; }
+
+  /* Titres et boutons plus compacts */
+  main.app-main h1 { font-size: 1.35rem !important; }
+
+  /* Les barres d'en-tête (titre + boutons) passent en colonne */
+  .section-header-flex { flex-direction: column; align-items: stretch !important; gap: 0.75rem; }
+  .section-header-flex > div:last-child { flex-wrap: wrap; }
+
+  /* Grilles de stats : 2 colonnes max */
+  #dash-stats, #registre-summary, #debts-summary, #cashbook-summary, #overview-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  /* Modals : pleine largeur avec marge */
+  .modal-box { max-width: 100%; margin: 0 0.5rem; }
+
+  /* Toasts plus étroits */
+  .toast { min-width: 200px; max-width: 85vw; }
+}
+
+@media (max-width: 480px) {
+  main.app-main { padding: 0.75rem !important; padding-top: 4.2rem !important; }
+  #dash-stats { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  table.data-table { font-size: 0.8rem; }
+  table.data-table thead th, table.data-table tbody td { padding: 0.45rem 0.5rem; }
+  .stat-card { padding: 0.85rem; }
+  .section-card { padding: 1rem; }
+}
+
+/* Tables : défilement horizontal fluide sur mobile (conteneur .overflow-x-auto déjà présent) */
+.section-card.overflow-x-auto { -webkit-overflow-scrolling: touch; }

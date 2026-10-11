@@ -12,7 +12,7 @@
 <div id="toast-container"></div>
 
 <div class="flex min-h-screen">
-  <aside class="w-64 bg-slate-900 text-white flex flex-col fixed inset-y-0 left-0">
+  <aside class="app-sidebar w-64 bg-slate-900 text-white flex flex-col fixed inset-y-0 left-0 overflow-y-auto">
     <div class="p-5 border-b border-white/10">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center"><i class="fas fa-chalkboard-user"></i></div>
@@ -31,7 +31,7 @@
     </div>
   </aside>
 
-  <main class="flex-1 ml-64 p-8">
+  <main class="app-main flex-1 ml-64 p-8">
     <div class="mb-6"><h1 class="text-2xl font-bold text-slate-800">Mes classes</h1><p class="text-slate-500 text-sm">Consultation des classes dont vous êtes titulaire</p></div>
     <div id="classes-container" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
   </main>

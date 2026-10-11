@@ -322,6 +322,111 @@ perception.post('/pay', async (c) => {
   })
 })
 
+// GET /api/perception/rapport-percepteur?percepteur_id=&date= - RAPPORT JOURNALIER PAR PERCEPTEUR
+// Liste tous les paiements perçus par un percepteur à une date donnée, groupés
+// par classe, avec total perçu par classe et total général.
+perception.get('/rapport-percepteur', async (c) => {
+  const user = c.get('user')
+  const db = c.env.DB
+  const date = c.req.query('date') || new Date().toISOString().slice(0, 10)
+  let percepteurId = c.req.query('percepteur_id')
+
+  // Un percepteur ne peut consulter que son propre rapport
+  if (user.role === 'percepteur') percepteurId = String(user.uid)
+  if (!percepteurId) return c.json({ error: 'percepteur_id requis' }, 400)
+
+  const percepteur = await db
+    .prepare(`SELECT id, name, email FROM users WHERE id = ? AND school_id = ? AND role IN ('percepteur','admin')`)
+    .bind(percepteurId, user.school_id)
+    .first<any>()
+  if (!percepteur) return c.json({ error: 'Percepteur introuvable' }, 404)
+
+  const { results: payments } = await db
+    .prepare(
+      `SELECT p.id, p.montant, p.receipt_number, p.date_paiement, p.trimester_id,
+              st.nom, st.post_nom, st.prenom, st.categorie,
+              cl.id as class_id, cl.name as class_name, t.name as trimester_name
+       FROM payments p
+       JOIN students st ON st.id = p.student_id
+       JOIN classes cl ON cl.id = p.class_id
+       JOIN trimesters t ON t.id = p.trimester_id
+       WHERE p.percepteur_id = ? AND p.date_paiement = ? AND p.cancelled = 0 AND p.school_id = ?
+       ORDER BY cl.name ASC, st.nom ASC, st.post_nom ASC, p.id ASC`
+    )
+    .bind(percepteurId, date, user.school_id)
+    .all<any>()
+
+  // Groupement par classe avec total par classe
+  const byClass = new Map<number, { class_id: number; class_name: string; payments: any[]; total: number; count: number }>()
+  let grandTotal = 0
+  for (const p of payments) {
+    if (!byClass.has(p.class_id)) {
+      byClass.set(p.class_id, { class_id: p.class_id, class_name: p.class_name, payments: [], total: 0, count: 0 })
+    }
+    const g = byClass.get(p.class_id)!
+    g.payments.push(p)
+    g.total += p.montant
+    g.count += 1
+    grandTotal += p.montant
+  }
+
+  return c.json({
+    date,
+    percepteur,
+    classes: Array.from(byClass.values()),
+    total: grandTotal,
+    count: payments.length
+  })
+})
+
+// PATCH /api/perception/payments/:id - MODIFIER un paiement/reçu (ADMIN uniquement)
+perception.patch('/payments/:id', async (c) => {
+  const user = c.get('user')
+  if (user.role !== 'admin') return c.json({ error: 'Seule l\'administration de l\'école peut modifier un reçu' }, 403)
+  const db = c.env.DB
+  const id = c.req.param('id')
+  const { montant, date_paiement } = await c.req.json<any>()
+
+  const payment = await db.prepare(`SELECT * FROM payments WHERE id = ? AND school_id = ?`).bind(id, user.school_id).first<any>()
+  if (!payment) return c.json({ error: 'Paiement introuvable' }, 404)
+
+  if (montant !== undefined && (isNaN(Number(montant)) || Number(montant) <= 0)) {
+    return c.json({ error: 'Montant invalide' }, 400)
+  }
+
+  const newMontant = montant !== undefined ? Number(montant) : payment.montant
+  const newDate = date_paiement || payment.date_paiement
+
+  await db.prepare(`UPDATE payments SET montant = ?, date_paiement = ? WHERE id = ?`).bind(newMontant, newDate, id).run()
+
+  // Resynchroniser le livre de caisse pour l'ancienne ET la nouvelle date
+  const trimester = await db.prepare(`SELECT school_year_id FROM trimesters WHERE id = ?`).bind(payment.trimester_id).first<any>()
+  await syncCashbookAutoEntry(db, user.school_id, trimester.school_year_id, payment.date_paiement, user.uid)
+  if (newDate !== payment.date_paiement) {
+    await syncCashbookAutoEntry(db, user.school_id, trimester.school_year_id, newDate, user.uid)
+  }
+
+  return c.json({ success: true })
+})
+
+// DELETE /api/perception/payments/:id - SUPPRIMER définitivement un paiement/reçu (ADMIN uniquement)
+perception.delete('/payments/:id', async (c) => {
+  const user = c.get('user')
+  if (user.role !== 'admin') return c.json({ error: 'Seule l\'administration de l\'école peut supprimer un reçu' }, 403)
+  const db = c.env.DB
+  const id = c.req.param('id')
+
+  const payment = await db.prepare(`SELECT * FROM payments WHERE id = ? AND school_id = ?`).bind(id, user.school_id).first<any>()
+  if (!payment) return c.json({ error: 'Paiement introuvable' }, 404)
+
+  await db.prepare(`DELETE FROM payments WHERE id = ?`).bind(id).run()
+
+  const trimester = await db.prepare(`SELECT school_year_id FROM trimesters WHERE id = ?`).bind(payment.trimester_id).first<any>()
+  await syncCashbookAutoEntry(db, user.school_id, trimester.school_year_id, payment.date_paiement, user.uid)
+
+  return c.json({ success: true })
+})
+
 // POST /api/perception/payments/:id/cancel - annuler un paiement (erreur de saisie)
 perception.post('/payments/:id/cancel', async (c) => {
   const user = c.get('user')

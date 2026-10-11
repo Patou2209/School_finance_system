@@ -109,6 +109,38 @@ async function doLogout() {
   window.location.href = '/static/index.html'
 }
 
+/* ----------------------------------------------------------------------------
+   Sidebar mobile (responsive) : injecte un topbar + overlay et gère l'ouverture.
+   Appelé automatiquement au chargement si un <aside class="app-sidebar"> existe.
+---------------------------------------------------------------------------- */
+function setupMobileSidebar() {
+  const sidebar = document.querySelector('aside.app-sidebar')
+  if (!sidebar || document.getElementById('mobile-topbar')) return
+
+  const title = document.title.split('—')[0].trim() || 'Menu'
+  const topbar = document.createElement('div')
+  topbar.id = 'mobile-topbar'
+  topbar.innerHTML = `
+    <div class="burger" id="sidebar-burger"><i class="fas fa-bars"></i></div>
+    <span class="topbar-title">${escapeHtml(title)}</span>`
+  document.body.prepend(topbar)
+
+  const overlay = document.createElement('div')
+  overlay.id = 'sidebar-overlay'
+  document.body.appendChild(overlay)
+
+  const close = () => { sidebar.classList.remove('open'); overlay.classList.remove('show') }
+  const open = () => { sidebar.classList.add('open'); overlay.classList.add('show') }
+
+  document.getElementById('sidebar-burger').addEventListener('click', () => {
+    sidebar.classList.contains('open') ? close() : open()
+  })
+  overlay.addEventListener('click', close)
+  // Fermer le tiroir quand on clique sur un lien de navigation
+  sidebar.querySelectorAll('.nav-link').forEach(l => l.addEventListener('click', close))
+}
+document.addEventListener('DOMContentLoaded', setupMobileSidebar)
+
 function openModal(html) {
   const overlay = document.createElement('div')
   overlay.className = 'modal-overlay'
