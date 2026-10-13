@@ -28,6 +28,7 @@ async function init() {
   populateDebtSelectors()
   populateBudgetSelectors()
   buildReportTabs()
+  setupStudentSearch({ inputId: 'student-search-input', resultsId: 'student-search-results', trimesterSelectId: 'perc-summary-trimester' })
 }
 
 function setupTabs() {
@@ -169,7 +170,7 @@ async function loadClasses() {
   classesCache = classes
   document.getElementById('classes-tbody').innerHTML = classes.map(cl => `
     <tr>
-      <td class="font-medium">${escapeHtml(cl.name)}</td>
+      <td class="font-medium">${escapeHtml(cl.name)}${cl.option ? `<span class="badge badge-amber ml-2">${escapeHtml(cl.option)}</span>` : ''}</td>
       <td>${escapeHtml(cl.level || '—')}</td>
       <td>${cl.student_count}</td>
       <td>${cl.teacher_count}</td>
@@ -294,6 +295,7 @@ async function viewClassDetail(classId) {
 
 const CLASS_ORDINALS = ['1ère', '2ème', '3ème', '4ème', '5ème', '6ème', '7ème','8ème']
 const CLASS_LEVELS = ['CTEB', 'Humanitaire', 'Primaire']
+const CLASS_OPTIONS = ['Commerciale-gestion', 'Construction', 'Coupe et couture', 'Latin-philosophie', 'Menuiserie', 'Nutrition', 'Pédagogie générale', 'Scientifique']
 
 function showCreateClassModal() {
   const currentYear = schoolYears.find(y => y.is_current) || schoolYears[0]
@@ -309,11 +311,19 @@ function showCreateClassModal() {
           </div>
           <div><label class="text-xs font-medium text-slate-600">Étiquette</label><input id="cc-label" placeholder="ex: A" maxlength="5" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
         </div>
-        <div><label class="text-xs font-medium text-slate-600">Niveau</label>
-          <select id="cc-level" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
-            <option value="">— Choisir —</option>
-            ${CLASS_LEVELS.map(l => `<option value="${l}">${l}</option>`).join('')}
-          </select>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div><label class="text-xs font-medium text-slate-600">Niveau</label>
+            <select id="cc-level" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" onchange="toggleOptionField()">
+              <option value="">— Choisir —</option>
+              ${CLASS_LEVELS.map(l => `<option value="${l}">${l}</option>`).join('')}
+            </select>
+          </div>
+          <div id="cc-option-wrap" class="hidden"><label class="text-xs font-medium text-slate-600">Option (humanités)</label>
+            <select id="cc-option" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
+              <option value="">— Aucune —</option>
+              ${CLASS_OPTIONS.map(o => `<option value="${o}">${o}</option>`).join('')}
+            </select>
+          </div>
         </div>
         <div><label class="text-xs font-medium text-slate-600">Année scolaire *</label>
           <select id="cc-year" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
@@ -341,6 +351,7 @@ function showCreateClassModal() {
       const result = await Api.post('/api/admin/classes', {
         name: className,
         level: document.getElementById('cc-level').value,
+        option: document.getElementById('cc-option').value || null,
         school_year_id: document.getElementById('cc-year').value,
         login_email: loginEmail,
         login_password: loginPassword

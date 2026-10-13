@@ -26,6 +26,7 @@ async function init() {
   trimesters = trimRes.trimesters
 
   populateSelectors()
+  setupStudentSearch({ inputId: 'student-search-input', resultsId: 'student-search-results', trimesterSelectId: 'perc-summary-trimester' })
 
   if (myClasses.length === 0) {
     document.getElementById('perception-classes-grid').innerHTML = '<p class="text-slate-400 text-sm col-span-full text-center py-6">Aucune classe ne vous est affectée. Contactez l\'administrateur de votre école.</p>'

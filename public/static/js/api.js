@@ -110,6 +110,59 @@ async function doLogout() {
 }
 
 /* ----------------------------------------------------------------------------
+   RECHERCHE GÉNÉRALE D'ÉLÈVES (percepteur + admin)
+   Nécessite sur la page : showPayModal(), showStudentReceipts(), categoryBadge()
+   et un <select> de trimestre dont l'id est passé en paramètre.
+---------------------------------------------------------------------------- */
+function setupStudentSearch({ inputId, resultsId, trimesterSelectId }) {
+  const input = document.getElementById(inputId)
+  const resultsBox = document.getElementById(resultsId)
+  if (!input || !resultsBox) return
+  let timer = null
+
+  const hide = () => { resultsBox.classList.add('hidden'); resultsBox.innerHTML = '' }
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer)
+    const q = input.value.trim()
+    if (q.length < 2) { hide(); return }
+    timer = setTimeout(async () => {
+      try {
+        const { students } = await Api.get(`/api/perception/search-students?q=${encodeURIComponent(q)}`)
+        if (!students.length) {
+          resultsBox.innerHTML = '<div class="p-4 text-sm text-slate-400 text-center">Aucun élève trouvé</div>'
+          resultsBox.classList.remove('hidden')
+          return
+        }
+        const trimesterId = document.getElementById(trimesterSelectId)?.value || ''
+        resultsBox.innerHTML = students.map(s => `
+          <div class="search-result-item">
+            <div class="min-w-0">
+              <p class="font-semibold text-slate-800 text-sm truncate">${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)} ${escapeHtml(s.prenom || '')}</p>
+              <p class="text-xs text-slate-500">${escapeHtml(s.class_name)}${s.class_option ? ' — ' + escapeHtml(s.class_option) : ''} ${typeof categoryBadge === 'function' ? categoryBadge(s.categorie) : ''}</p>
+            </div>
+            <div class="flex gap-1.5 shrink-0">
+              <button onclick="hideStudentSearch('${resultsId}'); showStudentReceipts(${s.id}, '${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}', ${trimesterId})" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1.5 rounded text-xs font-semibold" title="Situation & reçus"><i class="fas fa-receipt"></i></button>
+              <button onclick="hideStudentSearch('${resultsId}'); showPayModal(${s.id}, '${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}', ${trimesterId})" class="bg-green-600 hover:bg-green-700 text-white px-2.5 py-1.5 rounded text-xs font-semibold"><i class="fas fa-hand-holding-dollar mr-1"></i>Percevoir</button>
+            </div>
+          </div>`).join('')
+        resultsBox.classList.remove('hidden')
+      } catch (e) { hide() }
+    }, 300)
+  })
+
+  // Fermer si clic en dehors
+  document.addEventListener('click', (e) => {
+    if (!input.contains(e.target) && !resultsBox.contains(e.target)) hide()
+  })
+}
+
+function hideStudentSearch(resultsId) {
+  const box = document.getElementById(resultsId)
+  if (box) { box.classList.add('hidden'); box.innerHTML = '' }
+}
+
+/* ----------------------------------------------------------------------------
    Sidebar mobile (responsive) : injecte un topbar + overlay et gère l'ouverture.
    Appelé automatiquement au chargement si un <aside class="app-sidebar"> existe.
 ---------------------------------------------------------------------------- */

@@ -322,6 +322,47 @@ perception.post('/pay', async (c) => {
   })
 })
 
+// GET /api/perception/search-students?q= - RECHERCHE GÉNÉRALE D'ÉLÈVES
+// Pour le percepteur : limité à ses classes affectées. Pour l'admin : toute l'école.
+perception.get('/search-students', async (c) => {
+  const user = c.get('user')
+  const db = c.env.DB
+  const q = (c.req.query('q') || '').trim()
+  if (q.length < 2) return c.json({ students: [] })
+
+  const like = `%${q}%`
+  let query: string
+  let binds: any[]
+
+  if (user.role === 'percepteur') {
+    query = `
+      SELECT st.id, st.nom, st.post_nom, st.prenom, st.matricule, st.categorie,
+             cl.id as class_id, cl.name as class_name, cl.option as class_option
+      FROM students st
+      JOIN classes cl ON cl.id = st.class_id
+      JOIN class_percepteurs cp ON cp.class_id = cl.id AND cp.percepteur_id = ?
+      WHERE st.active = 1 AND cl.school_id = ?
+        AND (st.nom LIKE ? OR st.post_nom LIKE ? OR st.prenom LIKE ? OR (st.nom || ' ' || st.post_nom) LIKE ? OR st.matricule LIKE ?)
+      ORDER BY st.nom ASC, st.post_nom ASC
+      LIMIT 25`
+    binds = [user.uid, user.school_id, like, like, like, like, like]
+  } else {
+    query = `
+      SELECT st.id, st.nom, st.post_nom, st.prenom, st.matricule, st.categorie,
+             cl.id as class_id, cl.name as class_name, cl.option as class_option
+      FROM students st
+      JOIN classes cl ON cl.id = st.class_id
+      WHERE st.active = 1 AND cl.school_id = ?
+        AND (st.nom LIKE ? OR st.post_nom LIKE ? OR st.prenom LIKE ? OR (st.nom || ' ' || st.post_nom) LIKE ? OR st.matricule LIKE ?)
+      ORDER BY st.nom ASC, st.post_nom ASC
+      LIMIT 25`
+    binds = [user.school_id, like, like, like, like, like]
+  }
+
+  const { results } = await db.prepare(query).bind(...binds).all()
+  return c.json({ students: results })
+})
+
 // GET /api/perception/rapport-percepteur?percepteur_id=&date= - RAPPORT JOURNALIER PAR PERCEPTEUR
 // Liste tous les paiements perçus par un percepteur à une date donnée, groupés
 // par classe, avec total perçu par classe et total général.

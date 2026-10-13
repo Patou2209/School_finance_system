@@ -228,3 +228,18 @@ table.data-table thead.cashbook-head th.text-right { text-align: right; }
 
 /* Tables : défilement horizontal fluide sur mobile (conteneur .overflow-x-auto déjà présent) */
 .section-card.overflow-x-auto { -webkit-overflow-scrolling: touch; }
+
+/* Barre de recherche générale d'élèves */
+.student-search-wrap { position: relative; }
+.student-search-results {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 60;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 0.75rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.12); margin-top: 0.35rem;
+  max-height: 22rem; overflow-y: auto;
+}
+.search-result-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  padding: 0.65rem 0.9rem; border-bottom: 1px solid #f1f5f9;
+}
+.search-result-item:last-child { border-bottom: none; }
+.search-result-item:hover { background: #f8fafc; }

@@ -118,6 +118,14 @@
     <section id="tab-perception" class="hidden">
       <div id="perception-classes-view">
         <div class="mb-6"><h1 class="text-2xl font-bold text-slate-800">Perception journalière</h1><p class="text-slate-500 text-sm">Sélectionnez une classe pour consulter et enregistrer les perceptions du jour</p></div>
+        <!-- Barre de recherche générale d'élèves -->
+        <div class="section-card mb-4">
+          <label class="text-xs font-medium text-slate-600 block mb-1"><i class="fas fa-magnifying-glass mr-1.5 text-blue-600"></i>Recherche rapide d'un élève (toute l'école)</label>
+          <div class="student-search-wrap">
+            <input type="text" id="student-search-input" placeholder="Tapez le nom, post-nom ou matricule d'un élève…" class="w-full px-4 py-2.5 border rounded-lg text-sm" autocomplete="off">
+            <div id="student-search-results" class="student-search-results hidden"></div>
+          </div>
+        </div>
         <div class="section-card mb-6">
           <div class="flex flex-wrap gap-3 items-end">
             <div><label class="text-xs font-medium text-slate-600 block mb-1">Trimestre</label><select id="perc-summary-trimester" class="px-3 py-2 border rounded-lg text-sm w-44"></select></div>

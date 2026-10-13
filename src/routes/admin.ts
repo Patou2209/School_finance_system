@@ -27,6 +27,17 @@ function isValidSchoolYearLabel(label: string): boolean {
 
 /** Niveaux de classe autorisés. */
 const ALLOWED_LEVELS = ['CTEB', 'Humanitaire', 'Primaire']
+// Options des classes des humanités (secondaire)
+const ALLOWED_OPTIONS = [
+  'Commerciale-gestion',
+  'Construction',
+  'Coupe et couture',
+  'Latin-philosophie',
+  'Menuiserie',
+  'Nutrition',
+  'Pédagogie générale',
+  'Scientifique'
+]
 
 // ---------------------------------------------------------------------------
 // ANNEES SCOLAIRES
@@ -120,10 +131,13 @@ admin.get('/classes', async (c) => {
 // (plus d'auto-génération). Le niveau doit être l'un des 3 niveaux autorisés, et
 // le nom est composé côté frontend (ordinal + étiquette, ex: "2ème A").
 admin.post('/classes', async (c) => {
-  const { name, level, school_year_id, login_email, login_password } = await c.req.json<any>()
+  const { name, level, option, school_year_id, login_email, login_password } = await c.req.json<any>()
   if (!name || !school_year_id) return c.json({ error: 'Nom et année scolaire requis' }, 400)
   if (level && !ALLOWED_LEVELS.includes(level)) {
     return c.json({ error: `Niveau invalide (autorisés: ${ALLOWED_LEVELS.join(', ')})` }, 400)
+  }
+  if (option && !ALLOWED_OPTIONS.includes(option)) {
+    return c.json({ error: `Option invalide (autorisées: ${ALLOWED_OPTIONS.join(', ')})` }, 400)
   }
   if (!login_email || !login_password) {
     return c.json({ error: "L'email et le mot de passe de connexion de la classe sont requis" }, 400)
@@ -144,8 +158,8 @@ admin.post('/classes', async (c) => {
   let classId: number
   try {
     const result = await db
-      .prepare(`INSERT INTO classes (school_id, school_year_id, name, level) VALUES (?, ?, ?, ?)`)
-      .bind(sid, school_year_id, name, level || null)
+      .prepare(`INSERT INTO classes (school_id, school_year_id, name, level, option) VALUES (?, ?, ?, ?, ?)`)
+      .bind(sid, school_year_id, name, level || null, option || null)
       .run()
     classId = result.meta.last_row_id as number
   } catch (e: any) {
@@ -168,12 +182,19 @@ admin.post('/classes', async (c) => {
 })
 
 admin.patch('/classes/:id', async (c) => {
-  const { name, level } = await c.req.json<any>()
+  const { name, level, option } = await c.req.json<any>()
   if (level && !ALLOWED_LEVELS.includes(level)) {
     return c.json({ error: `Niveau invalide (autorisés: ${ALLOWED_LEVELS.join(', ')})` }, 400)
   }
-  await c.env.DB.prepare(`UPDATE classes SET name = COALESCE(?, name), level = COALESCE(?, level) WHERE id = ? AND school_id = ?`)
-    .bind(name, level, c.req.param('id'), schoolId(c))
+  if (option && option !== '__none__' && !ALLOWED_OPTIONS.includes(option)) {
+    return c.json({ error: `Option invalide (autorisées: ${ALLOWED_OPTIONS.join(', ')})` }, 400)
+  }
+  // option '__none__' permet d'effacer l'option
+  const optionValue = option === '__none__' ? null : option
+  await c.env.DB.prepare(
+    `UPDATE classes SET name = COALESCE(?, name), level = COALESCE(?, level), option = CASE WHEN ? THEN ? ELSE option END WHERE id = ? AND school_id = ?`
+  )
+    .bind(name, level, option !== undefined ? 1 : 0, optionValue ?? null, c.req.param('id'), schoolId(c))
     .run()
   return c.json({ success: true })
 })
