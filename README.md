@@ -166,6 +166,8 @@ Tables principales (voir `migrations/0001_initial_schema.sql`) :
 - **Noms de classes avec option** : le nom composé inclut l'option (ex. « 1ère Scientifique », « 1ère Pédagogie générale ») pour permettre plusieurs classes du même ordinal avec des options différentes la même année
 - **Groupes de frais partagés** : toutes les 7ème partagent les mêmes frais, idem toutes les 8ème ; pour chaque option des humanités, les 1ère–3ème partagent les mêmes frais et les 4ème ont leurs frais propres. Un montant saisi s'applique automatiquement à toutes les classes du groupe (et une classe créée après coup hérite des frais existants de son groupe). La table des frais affiche une ligne par groupe.
 - Application entièrement responsive (sidebar mobile, tableaux, modals)
+- **Impression des reçus par plage de dates** (« du … au … », 8 reçus/page A4) : par classe (espaces admin, percepteur et classe) et **par percepteur sur une période** (onglet Rapport percepteur côté école, via `/api/perception/percepteur-receipts`)
+- **Synchronisation quasi temps réel** : les vues de perception (cartes classes + registre) se rafraîchissent automatiquement toutes les 10 s (si l'onglet est visible et aucun modal ouvert) — l'école voit presque immédiatement les paiements saisis par les percepteurs
 
 ### ⏳ Non implémenté / pistes d'amélioration
 - Espace **Enseignant** : actuellement une coquille d'information ; il manque une route API dédiée listant les classes/élèves de l'enseignant connecté (facile à ajouter : réutiliser le modèle de `/api/perception/my-classes` avec `class_teachers`).

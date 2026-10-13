@@ -72,7 +72,8 @@ function setupTabs() {
       document.getElementById('tab-' + link.dataset.tab).classList.remove('hidden')
       if (link.dataset.tab === 'debts') loadDebts()
       if (link.dataset.tab === 'fees') loadFees()
-      if (link.dataset.tab === 'perception') loadRegistre()
+      if (link.dataset.tab === 'perception') { loadRegistre(); setAutoRefresh(loadRegistre) } // synchro quasi temps réel
+      else setAutoRefresh(null)
       if (link.dataset.tab === 'students') loadStudents()
     })
   })
@@ -461,9 +462,17 @@ function exportRegistrePdf() {
 }
 
 function printAllReceipts() {
-  const date = document.getElementById('perc-date').value || todayStr()
   if (!myClass) return
-  window.open(`/static/receipts-batch.html?class_id=${myClass.id}&date=${date}`, '_blank')
+  const date = document.getElementById('perc-date').value || todayStr()
+  showDateRangePrintModal({
+    title: 'Imprimer les reçus de la classe',
+    subtitle: `${myClass.name} — choisissez la période`,
+    defaultFrom: date,
+    defaultTo: date,
+    onConfirm: (dateFrom, dateTo) => {
+      window.open(`/static/receipts-batch.html?class_id=${myClass.id}&date_from=${dateFrom}&date_to=${dateTo}`, '_blank')
+    }
+  })
 }
 
 // ---------------------------------------------------------------------------

@@ -71,13 +71,21 @@ const RECEIPTS_PER_PAGE = 8
 async function loadReceipts() {
   const params = new URLSearchParams(window.location.search)
   const classId = params.get('class_id')
+  const percepteurId = params.get('percepteur_id')
   const date = params.get('date')
-  if (!classId || !date) {
-    document.getElementById('receipts-container').innerHTML = '<p class="text-center text-red-600">Classe ou date non spécifiée</p>'
-    return
-  }
+  const dateFrom = params.get('date_from') || date
+  const dateTo = params.get('date_to') || date
   try {
-    const data = await Api.get(`/api/perception/class-receipts?class_id=${classId}&date=${date}`)
+    let data
+    if (percepteurId) {
+      // Mode percepteur : tous les reçus d'un percepteur sur la période
+      data = await Api.get(`/api/perception/percepteur-receipts?percepteur_id=${percepteurId}&date_from=${dateFrom}&date_to=${dateTo}`)
+    } else if (classId && dateFrom) {
+      data = await Api.get(`/api/perception/class-receipts?class_id=${classId}&date_from=${dateFrom}&date_to=${dateTo}`)
+    } else {
+      document.getElementById('receipts-container').innerHTML = '<p class="text-center text-red-600">Classe/percepteur ou date non spécifié</p>'
+      return
+    }
     render(data)
   } catch (err) {
     document.getElementById('receipts-container').innerHTML = `<p class="text-center text-red-600">${escapeHtml(err.message)}</p>`
@@ -131,10 +139,12 @@ function renderOneReceipt(school, payment, fee_amount, total_paid, balance) {
 }
 
 function render(data) {
-  const { school, class: cls, date, payments, count } = data
-  document.getElementById('summary-line').textContent = `Classe ${cls.name} — ${fmtDate(date)} — ${count} reçu(s)`
+  const { school, class: cls, percepteur, date_from, date_to, payments, count } = data
+  const periode = date_from === date_to ? fmtDate(date_from) : `du ${fmtDate(date_from)} au ${fmtDate(date_to)}`
+  const who = percepteur ? `Percepteur ${percepteur.name}` : `Classe ${cls.name}`
+  document.getElementById('summary-line').textContent = `${who} — ${periode} — ${count} reçu(s)`
   if (!payments || payments.length === 0) {
-    document.getElementById('receipts-container').innerHTML = '<p class="text-center text-slate-500">Aucun paiement enregistré pour cette classe à cette date</p>'
+    document.getElementById('receipts-container').innerHTML = '<p class="text-center text-slate-500">Aucun paiement enregistré pour cette période</p>'
     return
   }
 

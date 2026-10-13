@@ -32,6 +32,7 @@ async function init() {
     document.getElementById('perception-classes-grid').innerHTML = '<p class="text-slate-400 text-sm col-span-full text-center py-6">Aucune classe ne vous est affectée. Contactez l\'administrateur de votre école.</p>'
   } else {
     await loadPerceptionClasses()
+    setAutoRefresh(loadPerceptionClasses) // synchro quasi temps réel dès l'ouverture
   }
 }
 
@@ -47,6 +48,9 @@ function setupTabs() {
         document.getElementById('perception-detail-view').classList.add('hidden')
         document.getElementById('perception-classes-view').classList.remove('hidden')
         loadPerceptionClasses()
+        setAutoRefresh(loadPerceptionClasses) // synchro quasi temps réel
+      } else {
+        setAutoRefresh(null)
       }
       if (link.dataset.tab === 'debts') {
         currentDebtsClass = null
@@ -96,6 +100,7 @@ function openPerceptionClass(classId, className) {
   document.getElementById('perception-classes-view').classList.add('hidden')
   document.getElementById('perception-detail-view').classList.remove('hidden')
   loadRegistre()
+  setAutoRefresh(loadRegistre) // le registre se met à jour tout seul (synchro)
 }
 
 function closePerceptionDetail() {
@@ -103,6 +108,7 @@ function closePerceptionDetail() {
   document.getElementById('perception-detail-view').classList.add('hidden')
   document.getElementById('perception-classes-view').classList.remove('hidden')
   loadPerceptionClasses()
+  setAutoRefresh(loadPerceptionClasses)
 }
 
 // ---------------------------------------------------------------------------
@@ -258,7 +264,15 @@ function printReceipt(paymentId) {
 function printAllReceipts() {
   if (!currentPerceptionClass) return
   const date = document.getElementById('perc-date').value || todayStr()
-  window.open(`/static/receipts-batch.html?class_id=${currentPerceptionClass.id}&date=${date}`, '_blank')
+  showDateRangePrintModal({
+    title: 'Imprimer les reçus de la classe',
+    subtitle: `${currentPerceptionClass.name} — choisissez la période`,
+    defaultFrom: date,
+    defaultTo: date,
+    onConfirm: (dateFrom, dateTo) => {
+      window.open(`/static/receipts-batch.html?class_id=${currentPerceptionClass.id}&date_from=${dateFrom}&date_to=${dateTo}`, '_blank')
+    }
+  })
 }
 
 // ---------------------------------------------------------------------------

@@ -150,7 +150,7 @@
             <div><label class="text-xs font-medium text-slate-600 block mb-1">Trimestre</label><select id="perc-trimester" class="px-3 py-2 border rounded-lg text-sm w-44"></select></div>
             <div><label class="text-xs font-medium text-slate-600 block mb-1">Jour</label><input type="date" id="perc-date" class="px-3 py-2 border rounded-lg text-sm"></div>
             <button onclick="loadRegistre()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-search mr-2"></i>Afficher</button>
-            <button onclick="printAllReceipts()" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-print mr-2"></i>Imprimer tous les reçus du jour</button>
+            <button onclick="printAllReceipts()" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-print mr-2"></i>Imprimer les reçus (période)</button>
             <button onclick="exportRegistreExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-excel mr-1.5"></i>Excel</button>
             <button onclick="exportRegistrePdf()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-pdf mr-1.5"></i>PDF</button>
           </div>
@@ -170,6 +170,7 @@
       <div class="section-header-flex flex items-center justify-between mb-6">
         <div><h1 class="text-2xl font-bold text-slate-800">Rapport journalier par percepteur</h1><p class="text-slate-500 text-sm">Total perçu par un percepteur à une date donnée, détaillé par classe</p></div>
         <div class="flex gap-2">
+          <button onclick="printPercepteurReceipts()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-receipt mr-1.5"></i>Imprimer les reçus (période)</button>
           <button onclick="printRapportPercepteur()" class="bg-slate-800 hover:bg-slate-900 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-print mr-1.5"></i>Imprimer</button>
           <button onclick="exportRapportPercepteurExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-excel mr-1.5"></i>Excel</button>
           <button onclick="exportRapportPercepteurPdf()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-file-pdf mr-1.5"></i>PDF</button>

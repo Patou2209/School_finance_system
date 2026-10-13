@@ -209,3 +209,70 @@ function closeModal() {
   const overlay = document.getElementById('modal-overlay')
   if (overlay) overlay.remove()
 }
+
+// ---------------------------------------------------------------------------
+// AUTO-REFRESH (synchronisation quasi temps réel) : rafraîchit les données
+// à intervalle régulier tant que l'onglet du navigateur est visible, pour que
+// l'école voie presque immédiatement ce que perçoit le percepteur (et vice
+// versa) sans devoir recharger la page.
+// ---------------------------------------------------------------------------
+const AUTO_REFRESH_INTERVAL_MS = 10000 // 10 secondes
+let _autoRefreshTimer = null
+let _autoRefreshFn = null
+
+function setAutoRefresh(fn) {
+  _autoRefreshFn = fn
+  if (_autoRefreshTimer) clearInterval(_autoRefreshTimer)
+  if (!fn) { _autoRefreshTimer = null; return }
+  _autoRefreshTimer = setInterval(async () => {
+    // Ne rafraîchit pas si l'onglet n'est pas visible ou si un modal est ouvert
+    // (pour ne pas écraser une saisie en cours)
+    if (document.visibilityState !== 'visible') return
+    if (document.getElementById('modal-overlay')) return
+    try { await _autoRefreshFn() } catch (_) { /* silencieux */ }
+  }, AUTO_REFRESH_INTERVAL_MS)
+}
+
+// Rafraîchir immédiatement quand l'utilisateur revient sur l'onglet
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && _autoRefreshFn && !document.getElementById('modal-overlay')) {
+    _autoRefreshFn().catch(() => {})
+  }
+})
+
+// ---------------------------------------------------------------------------
+// Modal partagé : impression des reçus sur une PLAGE DE DATES (du … au …).
+// opts: { title, subtitle, defaultFrom, defaultTo, onConfirm(dateFrom, dateTo) }
+// ---------------------------------------------------------------------------
+function showDateRangePrintModal(opts) {
+  const today = todayStr()
+  const from = opts.defaultFrom || today
+  const to = opts.defaultTo || today
+  openModal(`
+    <div class="p-6">
+      <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fas fa-print mr-2 text-slate-700"></i>${opts.title || 'Imprimer les reçus'}</h3>
+      ${opts.subtitle ? `<p class="text-sm text-slate-500 mb-4">${opts.subtitle}</p>` : '<div class="mb-4"></div>'}
+      <form id="range-print-form" class="space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs font-medium text-slate-600">Du *</label>
+            <input type="date" id="rg-from" value="${from}" required class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+          <div><label class="text-xs font-medium text-slate-600">Au *</label>
+            <input type="date" id="rg-to" value="${to}" required class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+        </div>
+        <p class="text-xs text-slate-400"><i class="fas fa-info-circle mr-1"></i>Tous les reçus de la période seront ouverts dans une page d'impression (8 reçus par page A4). Pour un seul jour, mettez la même date dans les deux champs.</p>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100">Annuler</button>
+          <button type="submit" class="px-4 py-2 text-sm rounded-lg bg-slate-700 hover:bg-slate-800 text-white font-semibold"><i class="fas fa-print mr-1"></i>Imprimer</button>
+        </div>
+      </form>
+    </div>`)
+  document.getElementById('range-print-form').addEventListener('submit', (e) => {
+    e.preventDefault()
+    const dateFrom = document.getElementById('rg-from').value
+    const dateTo = document.getElementById('rg-to').value
+    if (!dateFrom || !dateTo) return toast('Les deux dates sont requises', 'error')
+    if (dateFrom > dateTo) return toast('La date « Du » doit être antérieure ou égale à la date « Au »', 'error')
+    closeModal()
+    opts.onConfirm(dateFrom, dateTo)
+  })
+}

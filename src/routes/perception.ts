@@ -8,7 +8,18 @@ import { requireAuth, requireRole } from '../middleware/auth'
 import { getCurrentSchoolYear, nextReceiptNumber, syncCashbookAutoEntry, getTotalPaid, getFeeAmount, FEE_FOR_STUDENT_SQL } from '../utils/db'
 
 const perception = new Hono<AppEnv>()
-perception.use('*', requireAuth, requireRole('admin', 'percepteur'))
+
+perception.use('*', requireAuth, async (c, next) => {
+  const user = c.get('user') as any
+  // Exception : /class-receipts est aussi accessible au rôle 'classe' (une
+  // classe connectée imprime SES PROPRES reçus — vérifié dans le handler).
+  const isClassReceipts = c.req.path.endsWith('/class-receipts')
+  const allowed = isClassReceipts ? ['admin', 'percepteur', 'classe'] : ['admin', 'percepteur']
+  if (!user || !allowed.includes(user.role)) {
+    return c.json({ error: 'Accès refusé : rôle insuffisant' }, 403)
+  }
+  await next()
+})
 
 // GET /api/perception/my-classes - classes affectées au percepteur connecté (ou toutes si admin)
 perception.get('/my-classes', async (c) => {
@@ -191,14 +202,22 @@ perception.get('/registre', async (c) => {
   return c.json({ date, students, total: totalRow?.total ?? 0, count: totalRow?.cnt ?? 0 })
 })
 
-// GET /api/perception/class-receipts?class_id=&date= - tous les reçus (paiements non annulés)
-// d'une classe pour une date donnée, pour l'impression groupée des reçus de la classe.
+// GET /api/perception/class-receipts?class_id=&date= OU &date_from=&date_to=
+// Tous les reçus (paiements non annulés) d'une classe pour une date donnée OU
+// une plage de dates, pour l'impression groupée des reçus de la classe.
 perception.get('/class-receipts', async (c) => {
   const user = c.get('user')
   const db = c.env.DB
   const classId = c.req.query('class_id')
   const date = c.req.query('date')
-  if (!classId || !date) return c.json({ error: 'class_id et date requis' }, 400)
+  const dateFrom = c.req.query('date_from') || date
+  const dateTo = c.req.query('date_to') || date
+  if (!classId || !dateFrom || !dateTo) return c.json({ error: 'class_id et date (ou date_from/date_to) requis' }, 400)
+
+  // Le rôle 'classe' ne peut imprimer que les reçus de SA propre classe
+  if ((user as any).role === 'classe' && Number(classId) !== Number((user as any).class_id)) {
+    return c.json({ error: 'Accès refusé : vous ne pouvez imprimer que les reçus de votre classe' }, 403)
+  }
 
   const cls = await db.prepare(`SELECT * FROM classes WHERE id = ? AND school_id = ?`).bind(classId, user.school_id).first<any>()
   if (!cls) return c.json({ error: 'Classe introuvable' }, 404)
@@ -215,10 +234,10 @@ perception.get('/class-receipts', async (c) => {
        JOIN trimesters t ON t.id = p.trimester_id
        JOIN school_years sy ON sy.id = t.school_year_id
        JOIN users u ON u.id = p.percepteur_id
-       WHERE p.class_id = ? AND p.date_paiement = ? AND p.cancelled = 0 AND p.school_id = ?
-       ORDER BY st.nom ASC, st.post_nom ASC, p.id ASC`
+       WHERE p.class_id = ? AND p.date_paiement >= ? AND p.date_paiement <= ? AND p.cancelled = 0 AND p.school_id = ?
+       ORDER BY p.date_paiement ASC, st.nom ASC, st.post_nom ASC, p.id ASC`
     )
-    .bind(classId, date, user.school_id)
+    .bind(classId, dateFrom, dateTo, user.school_id)
     .all<any>()
 
   // Calculer solde/total_paid par élève+trimestre pour chaque reçu affiché
@@ -229,7 +248,54 @@ perception.get('/class-receipts', async (c) => {
     enriched.push({ ...p, fee_amount: feeAmount, total_paid: totalPaid, balance: feeAmount - totalPaid })
   }
 
-  return c.json({ school, class: cls, date, payments: enriched, count: enriched.length })
+  return c.json({ school, class: cls, date: dateFrom, date_from: dateFrom, date_to: dateTo, payments: enriched, count: enriched.length })
+})
+
+// GET /api/perception/percepteur-receipts?percepteur_id=&date_from=&date_to=
+// Tous les reçus perçus par UN PERCEPTEUR sur une plage de dates (toutes
+// classes confondues) — pour l'impression groupée côté école.
+// Un percepteur connecté ne peut consulter que ses propres reçus.
+perception.get('/percepteur-receipts', async (c) => {
+  const user = c.get('user')
+  const db = c.env.DB
+  let percepteurId = c.req.query('percepteur_id')
+  const dateFrom = c.req.query('date_from')
+  const dateTo = c.req.query('date_to') || dateFrom
+  if (user.role === 'percepteur') percepteurId = String(user.uid)
+  if (!percepteurId || !dateFrom) return c.json({ error: 'percepteur_id et date_from requis' }, 400)
+
+  const percepteur = await db
+    .prepare(`SELECT id, name, email FROM users WHERE id = ? AND school_id = ? AND role IN ('percepteur','admin')`)
+    .bind(percepteurId, user.school_id)
+    .first<any>()
+  if (!percepteur) return c.json({ error: 'Percepteur introuvable' }, 404)
+
+  const school = await db.prepare(`SELECT * FROM schools WHERE id = ?`).bind(user.school_id).first<any>()
+
+  const { results: payments } = await db
+    .prepare(
+      `SELECT p.*, st.nom, st.post_nom, st.prenom, st.categorie, cl.name as class_name, t.name as trimester_name, t.number as trimester_number,
+              u.name as percepteur_name, sy.label as year_label
+       FROM payments p
+       JOIN students st ON st.id = p.student_id
+       JOIN classes cl ON cl.id = p.class_id
+       JOIN trimesters t ON t.id = p.trimester_id
+       JOIN school_years sy ON sy.id = t.school_year_id
+       JOIN users u ON u.id = p.percepteur_id
+       WHERE p.percepteur_id = ? AND p.date_paiement >= ? AND p.date_paiement <= ? AND p.cancelled = 0 AND p.school_id = ?
+       ORDER BY p.date_paiement ASC, cl.name ASC, st.nom ASC, p.id ASC`
+    )
+    .bind(percepteurId, dateFrom, dateTo, user.school_id)
+    .all<any>()
+
+  const enriched = []
+  for (const p of payments) {
+    const feeAmount = await getFeeAmount(db, p.class_id, p.trimester_id, p.categorie)
+    const totalPaid = await getTotalPaid(db, p.student_id, p.trimester_id)
+    enriched.push({ ...p, fee_amount: feeAmount, total_paid: totalPaid, balance: feeAmount - totalPaid })
+  }
+
+  return c.json({ school, percepteur, date_from: dateFrom, date_to: dateTo, payments: enriched, count: enriched.length })
 })
 
 // GET /api/perception/student/:id/situation?trimester_id= - situation de paiement d'un élève

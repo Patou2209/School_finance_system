@@ -46,9 +46,12 @@ function setupTabs() {
         document.getElementById('perception-detail-view').classList.add('hidden')
         document.getElementById('perception-classes-view').classList.remove('hidden')
         await loadPerceptionClasses()
-      }
-      if (link.dataset.tab === 'rapport-percepteur') {
+        setAutoRefresh(loadPerceptionClasses) // synchro quasi temps réel
+      } else if (link.dataset.tab === 'rapport-percepteur') {
         await populateRapportPercepteurSelector()
+        setAutoRefresh(async () => { if (document.getElementById('rp-percepteur').value) await loadRapportPercepteur() })
+      } else {
+        setAutoRefresh(null) // pas d'auto-refresh sur les autres onglets
       }
       if (link.dataset.tab === 'debts') {
         currentDebtsClass = null
@@ -936,6 +939,7 @@ function openPerceptionClass(classId, className) {
   document.getElementById('perception-classes-view').classList.add('hidden')
   document.getElementById('perception-detail-view').classList.remove('hidden')
   loadRegistre()
+  setAutoRefresh(loadRegistre) // le registre se met à jour tout seul (synchro)
 }
 
 function closePerceptionDetail() {
@@ -943,6 +947,7 @@ function closePerceptionDetail() {
   document.getElementById('perception-detail-view').classList.add('hidden')
   document.getElementById('perception-classes-view').classList.remove('hidden')
   loadPerceptionClasses()
+  setAutoRefresh(loadPerceptionClasses)
 }
 
 let registreCache = null
@@ -1067,7 +1072,33 @@ async function showStudentReceipts(studentId, studentName, trimesterId) {
 function printAllReceipts() {
   if (!currentPerceptionClass) return
   const date = document.getElementById('perc-date').value || todayStr()
-  window.open(`/static/receipts-batch.html?class_id=${currentPerceptionClass.id}&date=${date}`, '_blank')
+  showDateRangePrintModal({
+    title: 'Imprimer les reçus de la classe',
+    subtitle: `${currentPerceptionClass.name} — choisissez la période`,
+    defaultFrom: date,
+    defaultTo: date,
+    onConfirm: (dateFrom, dateTo) => {
+      window.open(`/static/receipts-batch.html?class_id=${currentPerceptionClass.id}&date_from=${dateFrom}&date_to=${dateTo}`, '_blank')
+    }
+  })
+}
+
+// Impression des reçus d'un PERCEPTEUR sur une période (onglet Rapport percepteur)
+function printPercepteurReceipts() {
+  const percepteurId = document.getElementById('rp-percepteur').value
+  if (!percepteurId) return toast('Choisissez d\'abord un percepteur', 'error')
+  const sel = document.getElementById('rp-percepteur')
+  const percepteurName = sel.options[sel.selectedIndex]?.text || ''
+  const date = document.getElementById('rp-date').value || todayStr()
+  showDateRangePrintModal({
+    title: 'Imprimer les reçus du percepteur',
+    subtitle: `${escapeHtml(percepteurName)} — choisissez la période`,
+    defaultFrom: date,
+    defaultTo: date,
+    onConfirm: (dateFrom, dateTo) => {
+      window.open(`/static/receipts-batch.html?percepteur_id=${percepteurId}&date_from=${dateFrom}&date_to=${dateTo}`, '_blank')
+    }
+  })
 }
 
 async function showPayModal(studentId, studentName, trimesterId) {
