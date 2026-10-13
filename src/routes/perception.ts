@@ -42,10 +42,10 @@ perception.get('/registre-summary', async (c) => {
   const trimesterId = c.req.query('trimester_id')
   if (!trimesterId) return c.json({ error: 'trimester_id requis' }, 400)
 
-  let classesQuery = `SELECT id, name, level FROM classes WHERE school_id = ? ORDER BY name`
+  let classesQuery = `SELECT id, name, level, option FROM classes WHERE school_id = ? ORDER BY name`
   let classBinds: any[] = [user.school_id]
   if (user.role === 'percepteur') {
-    classesQuery = `SELECT cl.id, cl.name, cl.level FROM classes cl
+    classesQuery = `SELECT cl.id, cl.name, cl.level, cl.option FROM classes cl
                      JOIN class_percepteurs cp ON cp.class_id = cl.id
                      WHERE cp.percepteur_id = ? AND cl.school_id = ?
                      ORDER BY cl.name`
@@ -70,6 +70,7 @@ perception.get('/registre-summary', async (c) => {
       class_id: cl.id,
       class_name: cl.name,
       level: cl.level,
+      option: cl.option,
       students_count: studentsCountRow?.cnt ?? 0,
       paid_count: dayRow?.paid_count ?? 0,
       total_collected: dayRow?.total ?? 0
@@ -87,10 +88,10 @@ perception.get('/debts-summary', async (c) => {
   const trimesterId = c.req.query('trimester_id')
   if (!trimesterId) return c.json({ error: 'trimester_id requis' }, 400)
 
-  let classesQuery = `SELECT id, name, level FROM classes WHERE school_id = ? ORDER BY name`
+  let classesQuery = `SELECT id, name, level, option FROM classes WHERE school_id = ? ORDER BY name`
   let classBinds: any[] = [user.school_id]
   if (user.role === 'percepteur') {
-    classesQuery = `SELECT cl.id, cl.name, cl.level FROM classes cl
+    classesQuery = `SELECT cl.id, cl.name, cl.level, cl.option FROM classes cl
                      JOIN class_percepteurs cp ON cp.class_id = cl.id
                      WHERE cp.percepteur_id = ? AND cl.school_id = ?
                      ORDER BY cl.name`
@@ -116,6 +117,7 @@ perception.get('/debts-summary', async (c) => {
       class_id: cl.id,
       class_name: cl.name,
       level: cl.level,
+      option: cl.option,
       debtors_count: debtors.length,
       total_debt: totalDebt
     })

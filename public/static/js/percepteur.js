@@ -78,7 +78,7 @@ async function loadPerceptionClasses() {
     <div onclick="openPerceptionClass(${cl.class_id}, '${escapeHtml(cl.class_name)}')" class="section-card cursor-pointer hover:shadow-md hover:border-blue-300 transition">
       <div class="flex items-center justify-between mb-3">
         <h3 class="font-bold text-slate-800">${escapeHtml(cl.class_name)}</h3>
-        <span class="badge badge-blue">${escapeHtml(cl.level || '—')}</span>
+        <span class="badge badge-blue">${escapeHtml(cl.level || '—')}</span>${cl.option ? `<span class="badge badge-amber ml-1">${escapeHtml(cl.option)}</span>` : ''}
       </div>
       <div class="grid grid-cols-2 gap-2 text-center">
         <div class="bg-slate-50 rounded-lg p-2"><p class="text-xs text-slate-500">Ont payé</p><p class="font-bold text-sm text-slate-800">${cl.paid_count}/${cl.students_count}</p></div>
@@ -273,7 +273,7 @@ async function loadDebtsClasses() {
     <div onclick="openDebtsClass(${cl.class_id}, '${escapeHtml(cl.class_name)}')" class="section-card cursor-pointer hover:shadow-md hover:border-blue-300 transition">
       <div class="flex items-center justify-between mb-3">
         <h3 class="font-bold text-slate-800">${escapeHtml(cl.class_name)}</h3>
-        <span class="badge badge-blue">${escapeHtml(cl.level || '—')}</span>
+        <span class="badge badge-blue">${escapeHtml(cl.level || '—')}</span>${cl.option ? `<span class="badge badge-amber ml-1">${escapeHtml(cl.option)}</span>` : ''}
       </div>
       <div class="grid grid-cols-2 gap-2 text-center">
         <div class="bg-slate-50 rounded-lg p-2"><p class="text-xs text-slate-500">Endettés</p><p class="font-bold text-sm ${cl.debtors_count > 0 ? 'text-red-600' : 'text-green-600'}">${cl.debtors_count}</p></div>

@@ -183,6 +183,7 @@ async function loadClasses() {
       <td class="space-x-2 whitespace-nowrap">
         <button onclick="openClassAsAdmin(${cl.id})" class="text-emerald-600 hover:underline text-xs font-semibold"><i class="fas fa-door-open"></i> Ouvrir</button>
         <button onclick="viewClassDetail(${cl.id})" class="text-slate-700 hover:underline text-xs font-semibold"><i class="fas fa-eye"></i> Voir</button>
+        <button onclick="showEditClassModal(${cl.id})" class="text-amber-600 hover:underline text-xs font-semibold"><i class="fas fa-pen"></i> Modifier</button>
         <button onclick="manageClassAssignments(${cl.id}, '${escapeHtml(cl.name)}')" class="text-blue-600 hover:underline text-xs font-semibold"><i class="fas fa-user-plus"></i> Affecter</button>
         <button onclick="showClassLoginEditModal(${cl.id}, '${escapeHtml(cl.name)}', '${escapeHtml(cl.login_email || '')}')" class="text-amber-600 hover:underline text-xs font-semibold"><i class="fas fa-key"></i> Identifiants</button>
         <button onclick="deleteClass(${cl.id})" class="text-red-600 hover:underline text-xs font-semibold"><i class="fas fa-trash"></i></button>
@@ -363,6 +364,58 @@ function showCreateClassModal() {
       if (result.class_login) {
         showClassLoginModal(className, result.class_login.email, result.class_login.password)
       }
+    } catch (err) { toast(err.message, 'error') }
+  })
+}
+
+function toggleOptionField() {
+  const level = document.getElementById('cc-level').value
+  const wrap = document.getElementById('cc-option-wrap')
+  if (!wrap) return
+  if (level === 'Humanitaire') wrap.classList.remove('hidden')
+  else { wrap.classList.add('hidden'); const sel = document.getElementById('cc-option'); if (sel) sel.value = '' }
+}
+
+function showEditClassModal(classId) {
+  const cl = classesCache.find(c => c.id === classId)
+  if (!cl) return
+  openModal(`
+    <div class="p-6">
+      <h3 class="text-lg font-bold text-slate-800 mb-4"><i class="fas fa-pen mr-2 text-amber-600"></i>Modifier la classe</h3>
+      <form id="edit-class-form" class="space-y-3">
+        <div><label class="text-xs font-medium text-slate-600">Nom de la classe *</label><input required id="ecl-name" value="${escapeHtml(cl.name)}" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div><label class="text-xs font-medium text-slate-600">Niveau</label>
+            <select id="ecl-level" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
+              <option value="">— Choisir —</option>
+              ${CLASS_LEVELS.map(l => `<option value="${l}" ${cl.level === l ? 'selected' : ''}>${l}</option>`).join('')}
+            </select>
+          </div>
+          <div><label class="text-xs font-medium text-slate-600">Option (humanités)</label>
+            <select id="ecl-option" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
+              <option value="__none__">— Aucune —</option>
+              ${CLASS_OPTIONS.map(o => `<option value="${o}" ${cl.option === o ? 'selected' : ''}>${o}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-3">
+          <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100">Annuler</button>
+          <button type="submit" class="px-4 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">Enregistrer</button>
+        </div>
+      </form>
+    </div>`)
+  document.getElementById('edit-class-form').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    try {
+      await Api.patch(`/api/admin/classes/${classId}`, {
+        name: document.getElementById('ecl-name').value.trim(),
+        level: document.getElementById('ecl-level').value || null,
+        option: document.getElementById('ecl-option').value
+      })
+      toast('Classe modifiée', 'success')
+      closeModal()
+      await refreshCoreData()
+      await loadClasses()
     } catch (err) { toast(err.message, 'error') }
   })
 }
@@ -790,7 +843,7 @@ async function loadPerceptionClasses() {
     <div onclick="openPerceptionClass(${cl.class_id}, '${escapeHtml(cl.class_name)}')" class="section-card cursor-pointer hover:shadow-md hover:border-blue-300 transition">
       <div class="flex items-center justify-between mb-3">
         <h3 class="font-bold text-slate-800">${escapeHtml(cl.class_name)}</h3>
-        <span class="badge badge-blue">${escapeHtml(cl.level || '—')}</span>
+        <span class="badge badge-blue">${escapeHtml(cl.level || '—')}</span>${cl.option ? `<span class="badge badge-amber ml-1">${escapeHtml(cl.option)}</span>` : ''}
       </div>
       <div class="grid grid-cols-2 gap-2 text-center">
         <div class="bg-slate-50 rounded-lg p-2"><p class="text-xs text-slate-500">Ont payé</p><p class="font-bold text-sm text-slate-800">${cl.paid_count}/${cl.students_count}</p></div>
@@ -1204,7 +1257,7 @@ async function loadDebtsClasses() {
     <div onclick="openDebtsClass(${cl.class_id}, '${escapeHtml(cl.class_name)}')" class="section-card cursor-pointer hover:shadow-md hover:border-blue-300 transition">
       <div class="flex items-center justify-between mb-3">
         <h3 class="font-bold text-slate-800">${escapeHtml(cl.class_name)}</h3>
-        <span class="badge badge-blue">${escapeHtml(cl.level || '—')}</span>
+        <span class="badge badge-blue">${escapeHtml(cl.level || '—')}</span>${cl.option ? `<span class="badge badge-amber ml-1">${escapeHtml(cl.option)}</span>` : ''}
       </div>
       <div class="grid grid-cols-2 gap-2 text-center">
         <div class="bg-slate-50 rounded-lg p-2"><p class="text-xs text-slate-500">Endettés</p><p class="font-bold text-sm ${cl.debtors_count > 0 ? 'text-red-600' : 'text-green-600'}">${cl.debtors_count}</p></div>
