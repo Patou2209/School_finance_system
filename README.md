@@ -158,6 +158,12 @@ Tables principales (voir `migrations/0001_initial_schema.sql`) :
 - Livre de caisse avec solde cumulé + agrégation automatique "Frais scolaire" (upsert idempotent, resynchronisation à l'annulation d'un paiement)
 - Prévision budgétaire (catégories, montants prévus) + comparaison prévu/réalisé
 - Rapport financier par trimestre + synthèse annuelle des 3 trimestres
+- **Rapport journalier par percepteur** (date + percepteur, groupé par classe, totaux, impression + Excel/PDF)
+- **Modification/suppression des reçus, des frais et des élèves** par l'école (admin)
+- **Recherche générale d'élèves** (percepteur : ses classes ; admin : toute l'école) avec actions directes Percevoir / Situation
+- **Options des classes humanités** (Commerciale-gestion, Construction, Coupe et couture, Latin-philosophie, Menuiserie, Nutrition, Pédagogie générale, Scientifique)
+- **Transfert d'élève entre classes** (bouton « Transférer » dans la liste des élèves, espaces classe ET admin) : l'élève part avec toutes ses données — ses paiements suivent (`payments.class_id` mis à jour) et les frais appliqués deviennent automatiquement ceux de la nouvelle classe
+- Application entièrement responsive (sidebar mobile, tableaux, modals)
 
 ### ⏳ Non implémenté / pistes d'amélioration
 - Espace **Enseignant** : actuellement une coquille d'information ; il manque une route API dédiée listant les classes/élèves de l'enseignant connecté (facile à ajouter : réutiliser le modèle de `/api/perception/my-classes` avec `class_teachers`).

@@ -212,6 +212,58 @@ classe.patch('/students/:id', async (c) => {
   return c.json({ success: true })
 })
 
+// GET /api/classe/school-classes - liste des autres classes de l'école
+// (pour choisir une destination de transfert)
+classe.get('/school-classes', async (c) => {
+  const db = c.env.DB
+  const user = c.get('user') as any
+  const classId = myClassId(c)
+  const { results } = await db
+    .prepare(
+      `SELECT cl.id, cl.name, cl.level, cl.option FROM classes cl
+       WHERE cl.school_id = ? AND cl.id != ?
+       ORDER BY cl.name`
+    )
+    .bind(user.school_id, classId)
+    .all()
+  return c.json({ classes: results })
+})
+
+// POST /api/classe/students/:id/transfer - transfère un élève de la classe
+// connectée vers une autre classe de l'école. L'élève part avec toutes ses
+// données : ses paiements suivent (class_id des paiements mis à jour) et les
+// frais appliqués deviennent ceux de la nouvelle classe automatiquement.
+classe.post('/students/:id/transfer', async (c) => {
+  const db = c.env.DB
+  const user = c.get('user') as any
+  const classId = myClassId(c)
+  const id = c.req.param('id')
+  const body = await c.req.json<any>()
+  const toClassId = Number(body.to_class_id)
+  if (!toClassId) return c.json({ error: 'Classe de destination requise' }, 400)
+  if (toClassId === classId) return c.json({ error: "L'élève est déjà dans cette classe" }, 400)
+
+  const student = await db.prepare(`SELECT * FROM students WHERE id = ? AND class_id = ?`).bind(id, classId).first<any>()
+  if (!student) return c.json({ error: 'Élève introuvable dans votre classe' }, 404)
+
+  const target = await db
+    .prepare(`SELECT * FROM classes WHERE id = ? AND school_id = ?`)
+    .bind(toClassId, user.school_id)
+    .first<any>()
+  if (!target) return c.json({ error: 'Classe de destination introuvable' }, 404)
+
+  // 1. Déplacer l'élève
+  await db.prepare(`UPDATE students SET class_id = ? WHERE id = ?`).bind(toClassId, id).run()
+  // 2. Ses paiements le suivent
+  await db.prepare(`UPDATE payments SET class_id = ? WHERE student_id = ?`).bind(toClassId, id).run()
+
+  return c.json({
+    success: true,
+    message: `Élève transféré vers ${target.name} avec tous ses paiements et données`,
+    to_class: { id: target.id, name: target.name },
+  })
+})
+
 // DELETE /api/classe/students/:id - supprime un élève de la classe connectée uniquement
 classe.delete('/students/:id', async (c) => {
   const db = c.env.DB

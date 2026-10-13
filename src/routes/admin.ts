@@ -516,6 +516,38 @@ admin.delete('/students/:id', async (c) => {
   return c.json({ success: true })
 })
 
+// POST /api/admin/students/:id/transfer - transfère un élève vers une autre classe.
+// L'élève part avec TOUTES ses données : ses paiements (le class_id des
+// paiements est mis à jour pour suivre l'élève) et son historique. Les frais
+// appliqués deviennent automatiquement ceux de la nouvelle classe (le calcul
+// des frais est basé sur students.class_id).
+admin.post('/students/:id/transfer', async (c) => {
+  const db = c.env.DB
+  const sid = schoolId(c)
+  const id = c.req.param('id')
+  const body = await c.req.json<any>()
+  const toClassId = Number(body.to_class_id)
+  if (!toClassId) return c.json({ error: 'Classe de destination requise' }, 400)
+
+  const student = await db.prepare(`SELECT * FROM students WHERE id = ? AND school_id = ?`).bind(id, sid).first<any>()
+  if (!student) return c.json({ error: 'Élève introuvable' }, 404)
+  if (Number(student.class_id) === toClassId) return c.json({ error: "L'élève est déjà dans cette classe" }, 400)
+
+  const target = await db.prepare(`SELECT * FROM classes WHERE id = ? AND school_id = ?`).bind(toClassId, sid).first<any>()
+  if (!target) return c.json({ error: 'Classe de destination introuvable' }, 404)
+
+  // 1. Déplacer l'élève
+  await db.prepare(`UPDATE students SET class_id = ? WHERE id = ?`).bind(toClassId, id).run()
+  // 2. Ses paiements le suivent (registre & rapports de la nouvelle classe)
+  await db.prepare(`UPDATE payments SET class_id = ? WHERE student_id = ?`).bind(toClassId, id).run()
+
+  return c.json({
+    success: true,
+    message: `Élève transféré vers ${target.name} avec tous ses paiements et données`,
+    to_class: { id: target.id, name: target.name },
+  })
+})
+
 // ---------------------------------------------------------------------------
 // STRUCTURE DES FRAIS (par classe x trimestre)
 // ---------------------------------------------------------------------------

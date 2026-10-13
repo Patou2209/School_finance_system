@@ -539,9 +539,45 @@ async function loadStudents() {
       <td class="space-x-2 whitespace-nowrap">
         <button onclick="showEditStudentModal(${s.id})" class="text-amber-600 hover:underline text-xs font-semibold" title="Modifier l'élève"><i class="fas fa-pen"></i> Modifier</button>
         <button onclick="showEditStudentCategoryModal(${s.id}, '${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}', '${s.categorie || 'normal'}')" class="text-blue-600 hover:underline text-xs font-semibold"><i class="fas fa-tag"></i> Catégorie</button>
+        <button onclick="showTransferStudentModal(${s.id}, '${escapeHtml(s.nom)} ${escapeHtml(s.post_nom)}', ${s.class_id})" class="text-purple-600 hover:underline text-xs font-semibold" title="Transférer vers une autre classe"><i class="fas fa-exchange-alt"></i> Transférer</button>
         <button onclick="deleteStudent(${s.id})" class="text-red-600 hover:underline text-xs font-semibold" title="Supprimer l'élève"><i class="fas fa-trash"></i></button>
       </td>
     </tr>`).join('') || '<tr><td colspan="6" class="text-center text-slate-400 py-6">Aucun élève. L\'ajout et l\'import se font depuis l\'espace de connexion de chaque classe.</td></tr>'
+}
+
+// Transfert d'un élève vers une autre classe (avec paiements et toutes ses données)
+function showTransferStudentModal(studentId, studentName, currentClassId) {
+  const destClasses = classesCache.filter(cl => cl.id !== currentClassId)
+  if (!destClasses.length) { toast('Aucune autre classe disponible', 'error'); return }
+  openModal(`
+    <div class="p-6">
+      <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fas fa-exchange-alt mr-2 text-purple-600"></i>Transférer l'élève</h3>
+      <p class="text-sm text-slate-500 mb-4">${escapeHtml(studentName)}</p>
+      <form id="transfer-form" class="space-y-3">
+        <div><label class="text-xs font-medium text-slate-600">Classe de destination *</label>
+          <select id="tr-class" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" required>
+            <option value="">— Choisir une classe —</option>
+            ${destClasses.map(cl => `<option value="${cl.id}">${escapeHtml(cl.name)}${cl.option ? ' (' + escapeHtml(cl.option) + ')' : ''} — ${escapeHtml(cl.level || '')}</option>`).join('')}
+          </select>
+        </div>
+        <p class="text-xs text-slate-400"><i class="fas fa-info-circle mr-1"></i>L'élève part avec toutes ses données : ses paiements et son historique le suivent. Les frais appliqués seront ceux de la nouvelle classe.</p>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100">Annuler</button>
+          <button type="submit" class="px-4 py-2 text-sm rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold"><i class="fas fa-exchange-alt mr-1"></i>Transférer</button>
+        </div>
+      </form>
+    </div>`)
+  document.getElementById('transfer-form').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const toClassId = document.getElementById('tr-class').value
+    if (!toClassId) { toast('Choisissez une classe de destination', 'error'); return }
+    try {
+      const res = await Api.post(`/api/admin/students/${studentId}/transfer`, { to_class_id: Number(toClassId) })
+      toast(res.message || 'Élève transféré', 'success')
+      closeModal()
+      await loadStudents()
+    } catch (err) { toast(err.message, 'error') }
+  })
 }
 
 function showEditStudentModal(studentId) {
