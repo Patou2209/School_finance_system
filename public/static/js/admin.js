@@ -346,7 +346,11 @@ function showCreateClassModal() {
     try {
       const ordinal = document.getElementById('cc-ordinal').value
       const label = document.getElementById('cc-label').value.trim()
-      const className = label ? `${ordinal} ${label}` : ordinal
+      const optionVal = document.getElementById('cc-option').value
+      // Le nom inclut l'option pour distinguer "1ère Scientifique" de "1ère Pédagogie générale"
+      let className = ordinal
+      if (optionVal) className += ` ${optionVal}`
+      if (label) className += ` ${label}`
       const loginEmail = document.getElementById('cc-login-email').value
       const loginPassword = document.getElementById('cc-login-password').value
       const result = await Api.post('/api/admin/classes', {
@@ -771,6 +775,38 @@ async function deleteStaff(id) {
 // ---------------------------------------------------------------------------
 let feesExportData = [] // pour l'export : [{ class_name, categorie, t1, t2, t3 }]
 
+// --- Groupes de frais (même logique que le backend) ---------------------
+// 7ème / 8ème : toutes les classes du même ordinal partagent les frais.
+// Option humanités : 1ère+2ème+3ème de la même option = mêmes frais ;
+// les 4ème de l'option ont leurs frais propres. Sinon classe individuelle.
+const FEE_HUM_JUNIORS = ['1ère', '2ème', '3ème']
+const FEE_CTEB_ORDS = ['7ème', '8ème']
+function feeClassOrdinal(name) { return String(name || '').trim().split(/\s+/)[0] }
+
+function buildFeeGroups(classes) {
+  const groups = new Map()
+  for (const cl of classes) {
+    const ord = feeClassOrdinal(cl.name)
+    let key, label
+    if (FEE_CTEB_ORDS.includes(ord)) {
+      key = `ord:${ord}`
+      label = `Toutes les ${ord}`
+    } else if (cl.option && FEE_HUM_JUNIORS.includes(ord)) {
+      key = `opt-jr:${cl.option}`
+      label = `1ère – 3ème ${cl.option}`
+    } else if (cl.option) {
+      key = `opt:${cl.option}:${ord}`
+      label = `${ord} ${cl.option}`
+    } else {
+      key = `cls:${cl.id}`
+      label = cl.name
+    }
+    if (!groups.has(key)) groups.set(key, { key, label, classes: [] })
+    groups.get(key).classes.push(cl)
+  }
+  return [...groups.values()]
+}
+
 async function loadFeesTable() {
   const currentYear = schoolYears.find(y => y.is_current) || schoolYears[0]
   if (!currentYear) { document.getElementById('fees-tbody').innerHTML = '<tr><td colspan="5" class="text-center text-slate-400 py-6">Créez une année scolaire d\'abord</td></tr>'; return }
@@ -787,33 +823,36 @@ async function loadFeesTable() {
 
   const CATS = ['normal', 'indigent', 'fils_enseignant']
   feesExportData = []
+  const groups = buildFeeGroups(classes)
 
-  document.getElementById('fees-tbody').innerHTML = classes.map(cl =>
-    CATS.map((cat, ci) => {
-      const exportRow = { class_name: cl.name, categorie: categoryLabel(cat) }
-      ts.forEach((t, i) => { exportRow['t' + (i + 1)] = feeMap[`${cl.id}-${t.id}-${cat}`] ?? '' })
+  document.getElementById('fees-tbody').innerHTML = groups.map(g => {
+    const rep = g.classes[0] // classe représentante : le backend propage au groupe
+    const members = g.classes.map(k => escapeHtml(k.name)).join(', ')
+    return CATS.map((cat, ci) => {
+      const exportRow = { class_name: g.label, categorie: categoryLabel(cat) }
+      ts.forEach((t, i) => { exportRow['t' + (i + 1)] = feeMap[`${rep.id}-${t.id}-${cat}`] ?? '' })
       feesExportData.push(exportRow)
       return `
     <tr class="${ci === 0 ? 'border-t-2 border-slate-200' : ''}">
-      ${ci === 0 ? `<td class="font-medium align-top" rowspan="3">${escapeHtml(cl.name)}</td>` : ''}
+      ${ci === 0 ? `<td class="font-medium align-top" rowspan="3">${escapeHtml(g.label)}${g.classes.length > 1 ? `<div class="text-[10px] text-slate-400 font-normal mt-0.5" title="${members}"><i class="fas fa-layer-group mr-1"></i>${g.classes.length} classes : ${members}</div>` : ''}</td>` : ''}
       <td>${categoryBadge(cat)}</td>
       ${ts.map(t => `<td>
         <div class="flex items-center gap-1">
-          <input type="number" min="0" step="0.01" value="${feeMap[`${cl.id}-${t.id}-${cat}`] ?? ''}" id="fee-${cl.id}-${t.id}-${cat}" class="w-28 px-2 py-1 border rounded text-sm" placeholder="${cat === 'normal' ? 'Montant' : 'Défaut: normal'}">
-          <button onclick="saveFee(${cl.id}, ${t.id}, '${cat}')" class="text-blue-600 text-xs" title="Enregistrer"><i class="fas fa-save"></i></button>
-          ${feeIdMap[`${cl.id}-${t.id}-${cat}`] !== undefined ? `<button onclick="deleteFee(${feeIdMap[`${cl.id}-${t.id}-${cat}`]})" class="text-red-500 text-xs" title="Supprimer ce frais"><i class="fas fa-trash"></i></button>` : ''}
+          <input type="number" min="0" step="0.01" value="${feeMap[`${rep.id}-${t.id}-${cat}`] ?? ''}" id="fee-${rep.id}-${t.id}-${cat}" class="w-28 px-2 py-1 border rounded text-sm" placeholder="${cat === 'normal' ? 'Montant' : 'Défaut: normal'}">
+          <button onclick="saveFee(${rep.id}, ${t.id}, '${cat}')" class="text-blue-600 text-xs" title="Enregistrer${g.classes.length > 1 ? ' (appliqué à tout le groupe)' : ''}"><i class="fas fa-save"></i></button>
+          ${feeIdMap[`${rep.id}-${t.id}-${cat}`] !== undefined ? `<button onclick="deleteFee(${feeIdMap[`${rep.id}-${t.id}-${cat}`]})" class="text-red-500 text-xs" title="Supprimer ce frais${g.classes.length > 1 ? ' (retiré de tout le groupe)' : ''}"><i class="fas fa-trash"></i></button>` : ''}
         </div>
       </td>`).join('')}
     </tr>`
     }).join('')
-  ).join('') || '<tr><td colspan="5" class="text-center text-slate-400 py-6">Aucune classe</td></tr>'
+  }).join('') || '<tr><td colspan="5" class="text-center text-slate-400 py-6">Aucune classe</td></tr>'
 }
 
 async function deleteFee(feeId) {
-  if (!confirm('Supprimer ce frais ? Les élèves de cette catégorie reviendront au tarif « normal » (ou à 0 si catégorie normale).')) return
+  if (!confirm('Supprimer ce frais ? Il sera retiré de toutes les classes du groupe. Les élèves de cette catégorie reviendront au tarif « normal » (ou à 0 si catégorie normale).')) return
   try {
-    await Api.del(`/api/admin/fee-structures/${feeId}`)
-    toast('Frais supprimé', 'success')
+    const res = await Api.del(`/api/admin/fee-structures/${feeId}`)
+    toast(res.removed_from > 1 ? `Frais supprimé de ${res.removed_from} classes du groupe` : 'Frais supprimé', 'success')
     await loadFeesTable()
   } catch (err) { toast(err.message, 'error') }
 }
@@ -823,8 +862,8 @@ async function saveFee(classId, trimesterId, categorie) {
   const montant = parseFloat(input.value)
   if (isNaN(montant) || montant < 0) return toast('Montant invalide', 'error')
   try {
-    await Api.post('/api/admin/fee-structures', { class_id: classId, trimester_id: trimesterId, montant, categorie })
-    toast(`Frais enregistré (${categoryLabel(categorie)})`, 'success')
+    const res = await Api.post('/api/admin/fee-structures', { class_id: classId, trimester_id: trimesterId, montant, categorie })
+    toast(res.applied_to > 1 ? `Frais enregistré (${categoryLabel(categorie)}) — appliqué à ${res.applied_to} classes du groupe` : `Frais enregistré (${categoryLabel(categorie)})`, 'success')
     await loadFeesTable()
   } catch (err) { toast(err.message, 'error') }
 }

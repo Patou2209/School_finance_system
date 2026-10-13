@@ -163,6 +163,8 @@ Tables principales (voir `migrations/0001_initial_schema.sql`) :
 - **Recherche générale d'élèves** (percepteur : ses classes ; admin : toute l'école) avec actions directes Percevoir / Situation
 - **Options des classes humanités** (Commerciale-gestion, Construction, Coupe et couture, Latin-philosophie, Menuiserie, Nutrition, Pédagogie générale, Scientifique)
 - **Transfert d'élève entre classes** (bouton « Transférer » dans la liste des élèves, espaces classe ET admin) : l'élève part avec toutes ses données — ses paiements suivent (`payments.class_id` mis à jour) et les frais appliqués deviennent automatiquement ceux de la nouvelle classe
+- **Noms de classes avec option** : le nom composé inclut l'option (ex. « 1ère Scientifique », « 1ère Pédagogie générale ») pour permettre plusieurs classes du même ordinal avec des options différentes la même année
+- **Groupes de frais partagés** : toutes les 7ème partagent les mêmes frais, idem toutes les 8ème ; pour chaque option des humanités, les 1ère–3ème partagent les mêmes frais et les 4ème ont leurs frais propres. Un montant saisi s'applique automatiquement à toutes les classes du groupe (et une classe créée après coup hérite des frais existants de son groupe). La table des frais affiche une ligne par groupe.
 - Application entièrement responsive (sidebar mobile, tableaux, modals)
 
 ### ⏳ Non implémenté / pistes d'amélioration

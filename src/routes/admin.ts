@@ -155,6 +155,17 @@ admin.post('/classes', async (c) => {
   const existingEmail = await db.prepare(`SELECT id FROM users WHERE email = ?`).bind(emailNorm).first()
   if (existingEmail) return c.json({ error: 'Cet email de connexion est déjà utilisé' }, 409)
 
+  // Vérification explicite du doublon pour un message clair.
+  // NB: le nom envoyé par le frontend inclut désormais l'option (ex: "1ère Scientifique"),
+  // ce qui permet d'avoir "1ère Scientifique" ET "1ère Pédagogie générale" la même année.
+  const dup = await db
+    .prepare(`SELECT id FROM classes WHERE school_year_id = ? AND name = ?`)
+    .bind(school_year_id, name)
+    .first()
+  if (dup) {
+    return c.json({ error: `Une classe nommée « ${name} » existe déjà pour cette année scolaire. Choisissez une option différente ou ajoutez une étiquette (ex: A, B) pour la distinguer.` }, 409)
+  }
+
   let classId: number
   try {
     const result = await db
@@ -173,6 +184,29 @@ admin.post('/classes', async (c) => {
     )
     .bind(sid, classId, `Classe ${name}`, emailNorm, hash, salt)
     .run()
+
+  // Si la nouvelle classe appartient à un groupe de frais (7ème/8ème, ou
+  // option humanités) et que des frais existent déjà pour ce groupe, elle
+  // en hérite automatiquement.
+  try {
+    const newCls = { id: classId, name, level: level || null, option: option || null, school_year_id }
+    const groupIds = (await feeGroupClassIds(db, sid, newCls)).filter((cid) => cid !== classId)
+    if (groupIds.length > 0) {
+      const { results: groupFees } = await db
+        .prepare(`SELECT trimester_id, categorie, montant FROM fee_structures WHERE school_id = ? AND class_id = ? `)
+        .bind(sid, groupIds[0])
+        .all<any>()
+      for (const f of groupFees) {
+        await db
+          .prepare(
+            `INSERT INTO fee_structures (school_id, class_id, trimester_id, categorie, montant) VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(class_id, trimester_id, categorie) DO UPDATE SET montant = excluded.montant, updated_at = CURRENT_TIMESTAMP`
+          )
+          .bind(sid, classId, f.trimester_id, f.categorie || 'normal', f.montant)
+          .run()
+      }
+    }
+  } catch (_) { /* héritage des frais non bloquant */ }
 
   return c.json({
     success: true,
@@ -551,6 +585,46 @@ admin.post('/students/:id/transfer', async (c) => {
 // ---------------------------------------------------------------------------
 // STRUCTURE DES FRAIS (par classe x trimestre)
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// GROUPES DE FRAIS : certaines classes partagent les mêmes frais.
+//  - Toutes les 7ème ont les mêmes frais (idem toutes les 8ème)
+//  - Pour chaque option des humanités : 1ère, 2ème et 3ème = mêmes frais,
+//    et les 4ème de l'option ont leurs propres frais.
+//  - Les autres classes (primaire, classes sans option) restent individuelles.
+// Quand on enregistre/supprime un frais, il est appliqué/retiré pour TOUTES
+// les classes du même groupe.
+// ---------------------------------------------------------------------------
+function classOrdinal(name: string): string {
+  return String(name || '').trim().split(/\s+/)[0]
+}
+const HUM_JUNIOR_ORDINALS = ['1ère', '2ème', '3ème']
+const CTEB_ORDINALS = ['7ème', '8ème']
+
+async function feeGroupClassIds(db: D1Database, sid: number, cls: any): Promise<number[]> {
+  const ord = classOrdinal(cls.name)
+  const { results: all } = await db
+    .prepare(`SELECT id, name, level, option FROM classes WHERE school_id = ? AND school_year_id = ?`)
+    .bind(sid, cls.school_year_id)
+    .all<any>()
+  // 7ème / 8ème : toutes les classes du même ordinal
+  if (CTEB_ORDINALS.includes(ord)) {
+    return all.filter((k: any) => classOrdinal(k.name) === ord).map((k: any) => k.id)
+  }
+  // Classes avec option (humanités)
+  if (cls.option) {
+    if (HUM_JUNIOR_ORDINALS.includes(ord)) {
+      // 1ère-3ème de la même option = même groupe
+      return all
+        .filter((k: any) => k.option === cls.option && HUM_JUNIOR_ORDINALS.includes(classOrdinal(k.name)))
+        .map((k: any) => k.id)
+    }
+    // 4ème (ou autre ordinal) de la même option = groupe (même ordinal + même option)
+    return all.filter((k: any) => k.option === cls.option && classOrdinal(k.name) === ord).map((k: any) => k.id)
+  }
+  // Classe individuelle
+  return [cls.id]
+}
+
 admin.get('/fee-structures', async (c) => {
   const sid = schoolId(c)
   const yearId = c.req.query('school_year_id')
@@ -579,18 +653,46 @@ admin.post('/fee-structures', async (c) => {
   if (!STUDENT_CATEGORIES.includes(cat)) {
     return c.json({ error: `Catégorie invalide (autorisées: ${STUDENT_CATEGORIES.join(', ')})` }, 400)
   }
-  await c.env.DB.prepare(
-    `INSERT INTO fee_structures (school_id, class_id, trimester_id, categorie, montant) VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(class_id, trimester_id, categorie) DO UPDATE SET montant = excluded.montant, updated_at = CURRENT_TIMESTAMP`
-  )
-    .bind(schoolId(c), class_id, trimester_id, cat, montant)
-    .run()
-  return c.json({ success: true })
+  const db = c.env.DB
+  const sid = schoolId(c)
+
+  const cls = await db.prepare(`SELECT * FROM classes WHERE id = ? AND school_id = ?`).bind(class_id, sid).first<any>()
+  if (!cls) return c.json({ error: 'Classe introuvable' }, 404)
+
+  // Applique le frais à TOUTES les classes du même groupe (7ème/8ème entre
+  // elles ; 1ère-3ème d'une même option ; 4ème d'une même option ; sinon la
+  // classe seule).
+  const groupIds = await feeGroupClassIds(db, sid, cls)
+  for (const cid of groupIds) {
+    await db
+      .prepare(
+        `INSERT INTO fee_structures (school_id, class_id, trimester_id, categorie, montant) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(class_id, trimester_id, categorie) DO UPDATE SET montant = excluded.montant, updated_at = CURRENT_TIMESTAMP`
+      )
+      .bind(sid, cid, trimester_id, cat, montant)
+      .run()
+  }
+  return c.json({ success: true, applied_to: groupIds.length })
 })
 
 admin.delete('/fee-structures/:id', async (c) => {
-  await c.env.DB.prepare(`DELETE FROM fee_structures WHERE id = ? AND school_id = ?`).bind(c.req.param('id'), schoolId(c)).run()
-  return c.json({ success: true })
+  const db = c.env.DB
+  const sid = schoolId(c)
+  const fee = await db
+    .prepare(`SELECT fs.*, cl.name, cl.level, cl.option, cl.school_year_id FROM fee_structures fs JOIN classes cl ON cl.id = fs.class_id WHERE fs.id = ? AND fs.school_id = ?`)
+    .bind(c.req.param('id'), sid)
+    .first<any>()
+  if (!fee) return c.json({ error: 'Frais introuvable' }, 404)
+
+  // Supprime le frais pour toutes les classes du même groupe
+  const groupIds = await feeGroupClassIds(db, sid, { id: fee.class_id, name: fee.name, level: fee.level, option: fee.option, school_year_id: fee.school_year_id })
+  for (const cid of groupIds) {
+    await db
+      .prepare(`DELETE FROM fee_structures WHERE school_id = ? AND class_id = ? AND trimester_id = ? AND categorie = ?`)
+      .bind(sid, cid, fee.trimester_id, fee.categorie)
+      .run()
+  }
+  return c.json({ success: true, removed_from: groupIds.length })
 })
 
 // ---------------------------------------------------------------------------
