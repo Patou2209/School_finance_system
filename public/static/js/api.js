@@ -32,6 +32,9 @@ const Api = {
   patch(path, body) {
     return this.request('PATCH', path, body)
   },
+  put(path, body) {
+    return this.request('PUT', path, body)
+  },
   del(path) {
     return this.request('DELETE', path)
   }

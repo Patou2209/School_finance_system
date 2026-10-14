@@ -212,7 +212,7 @@ async function load() {
       </div>
       <div class="text-center text-xs text-slate-700">
         <p class="font-semibold mb-14">Le Chef d'Établissement</p>
-        <p class="border-t-2 border-slate-500 pt-1.5 px-10 text-slate-500">Nom, Signature & Sceau</p>
+        <p class="border-t-2 border-slate-500 pt-1.5 px-10 text-slate-500">${school && school.head_name ? escapeHtml(school.head_name) + ' — Signature & Sceau' : 'Nom, Signature & Sceau'}</p>
       </div>
     </footer>
   `

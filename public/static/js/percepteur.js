@@ -237,6 +237,9 @@ async function showPayModal(studentId, studentName, trimesterId) {
         <div><label class="text-xs font-medium text-slate-600">Montant à percevoir *</label><input required type="number" step="0.01" min="0.01" max="${situation.balance}" id="pay-amount" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" placeholder="0.00">
           <p class="text-xs text-slate-400 mt-1"><i class="fas fa-circle-info mr-1"></i>Maximum autorisé : <span class="font-semibold text-slate-600">${fmtMoney(situation.balance, currentSchool?.currency)}</span> (le système refuse toute somme supérieure aux frais demandés)</p>
         </div>
+        <div><label class="text-xs font-medium text-slate-600">Date de perception *</label><input required type="date" id="pay-date" value="${(document.getElementById('perc-date')?.value) || todayStr()}" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
+          <p class="text-xs text-slate-400 mt-1">Par défaut : aujourd'hui — vous pouvez choisir une autre date</p>
+        </div>
         <div class="flex justify-end gap-2 pt-2">
           <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100">Annuler</button>
           <button type="submit" class="px-4 py-2 text-sm rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold">Enregistrer et générer le reçu</button>
@@ -253,7 +256,7 @@ async function showPayModal(studentId, studentName, trimesterId) {
       }
       const result = await Api.post('/api/perception/pay', {
         student_id: studentId, trimester_id: trimesterId, montant,
-        date_paiement: document.getElementById('perc-date').value || todayStr()
+        date_paiement: document.getElementById('pay-date').value || todayStr()
       })
       toast('Paiement enregistré : ' + result.receipt_number, 'success')
       closeModal()

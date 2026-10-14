@@ -39,6 +39,7 @@ function setupTabs() {
       document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'))
       document.getElementById('tab-' + link.dataset.tab).classList.remove('hidden')
       if (link.dataset.tab === 'students') await loadStudents()
+      if (link.dataset.tab === 'settings') await loadSchoolSettings()
       if (link.dataset.tab === 'cashbook') await loadCashbook()
       if (link.dataset.tab === 'budget') await loadBudget()
       if (link.dataset.tab === 'perception') {
@@ -81,14 +82,36 @@ async function loadDashboard() {
     { label: 'Classes', value: d.classes, icon: 'fa-chalkboard', color: 'text-blue-600' },
     { label: 'Élèves', value: d.students, icon: 'fa-user-graduate', color: 'text-indigo-600' },
     { label: 'Personnel', value: d.staff, icon: 'fa-users', color: 'text-purple-600' },
-    { label: "Perçu aujourd'hui", value: fmtMoney(d.today_collected, currentSchool?.currency), icon: 'fa-calendar-day', color: 'text-green-600' },
-    { label: 'Total perçu', value: fmtMoney(d.total_collected, currentSchool?.currency), icon: 'fa-coins', color: 'text-amber-600' }
+    // Montants masqués par défaut (confidentialité) — clic pour afficher/cacher
+    { label: "Perçu aujourd'hui", value: fmtMoney(d.today_collected, currentSchool?.currency), icon: 'fa-calendar-day', color: 'text-green-600', hidden: true },
+    { label: 'Total perçu', value: fmtMoney(d.total_collected, currentSchool?.currency), icon: 'fa-coins', color: 'text-amber-600', hidden: true }
   ]
-  document.getElementById('dash-stats').innerHTML = stats.map(s => `
+  document.getElementById('dash-stats').innerHTML = stats.map((s, i) => s.hidden ? `
+    <div class="stat-card cursor-pointer select-none" onclick="toggleKpiAmount(this)" title="Cliquer pour afficher / masquer">
+      <div class="flex items-center justify-between mb-2"><span class="text-xs font-medium text-slate-500">${s.label}</span><i class="fas ${s.icon} ${s.color}"></i></div>
+      <p class="text-xl font-bold text-slate-800 kpi-masked">••••••</p>
+      <p class="text-xl font-bold text-slate-800 kpi-value hidden">${s.value}</p>
+      <p class="text-[10px] text-slate-400 mt-1"><i class="fas fa-eye mr-1"></i>Cliquer pour afficher</p>
+    </div>` : `
     <div class="stat-card">
       <div class="flex items-center justify-between mb-2"><span class="text-xs font-medium text-slate-500">${s.label}</span><i class="fas ${s.icon} ${s.color}"></i></div>
       <p class="text-xl font-bold text-slate-800">${s.value}</p>
     </div>`).join('')
+}
+
+// Affiche/masque le montant d'une carte KPI (confidentialité à l'écran)
+function toggleKpiAmount(card) {
+  const masked = card.querySelector('.kpi-masked')
+  const value = card.querySelector('.kpi-value')
+  const hint = card.querySelector('.text-\\[10px\\]') || card.querySelector('p:last-child')
+  const showing = masked.classList.contains('hidden')
+  if (showing) {
+    masked.classList.remove('hidden'); value.classList.add('hidden')
+    if (hint) hint.innerHTML = '<i class="fas fa-eye mr-1"></i>Cliquer pour afficher'
+  } else {
+    masked.classList.add('hidden'); value.classList.remove('hidden')
+    if (hint) hint.innerHTML = '<i class="fas fa-eye-slash mr-1"></i>Cliquer pour masquer'
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -299,7 +322,9 @@ async function viewClassDetail(classId) {
 
 const CLASS_ORDINALS = ['1ère', '2ème', '3ème', '4ème', '5ème', '6ème', '7ème','8ème']
 const CLASS_LEVELS = ['CTEB', 'Humanitaire', 'Primaire']
-const CLASS_OPTIONS = ['Commerciale-gestion', 'Construction', 'Coupe et couture', 'Latin-philosophie', 'Menuiserie', 'Nutrition', 'Pédagogie générale', 'Scientifique']
+// Sans accents pour éviter les problèmes d'encodage Unicode (ex. « Pédagogie
+// générale » n'apparaissait pas sur les reçus selon l'OS/navigateur)
+const CLASS_OPTIONS = ['Commerciale-gestion', 'Construction', 'Coupe et couture', 'Latin-philosophie', 'Menuiserie', 'Nutrition', 'Pedagogie generale', 'Scientifique']
 
 function showCreateClassModal() {
   const currentYear = schoolYears.find(y => y.is_current) || schoolYears[0]
@@ -1116,6 +1141,9 @@ async function showPayModal(studentId, studentName, trimesterId) {
         <div><label class="text-xs font-medium text-slate-600">Montant à percevoir *</label><input required type="number" step="0.01" min="0.01" max="${situation.balance}" id="pay-amount" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" placeholder="0.00">
           <p class="text-xs text-slate-400 mt-1"><i class="fas fa-circle-info mr-1"></i>Maximum autorisé : <span class="font-semibold text-slate-600">${fmtMoney(situation.balance, currentSchool?.currency)}</span> (le système refuse toute somme supérieure aux frais demandés)</p>
         </div>
+        <div><label class="text-xs font-medium text-slate-600">Date de perception *</label><input required type="date" id="pay-date" value="${(document.getElementById('perc-date')?.value) || todayStr()}" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm">
+          <p class="text-xs text-slate-400 mt-1">Par défaut : aujourd'hui — vous pouvez choisir une autre date</p>
+        </div>
         <div class="flex justify-end gap-2 pt-2">
           <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100">Annuler</button>
           <button type="submit" class="px-4 py-2 text-sm rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold">Enregistrer et générer le reçu</button>
@@ -1132,7 +1160,7 @@ async function showPayModal(studentId, studentName, trimesterId) {
       }
       const result = await Api.post('/api/perception/pay', {
         student_id: studentId, trimester_id: trimesterId, montant,
-        date_paiement: document.getElementById('perc-date').value || todayStr()
+        date_paiement: document.getElementById('pay-date').value || todayStr()
       })
       toast('Paiement enregistré : ' + result.receipt_number, 'success')
       closeModal()
@@ -1867,5 +1895,54 @@ function exportReportPdf() {
     sections: r.sections
   })
 }
+
+// ---------------------------------------------------------------------------
+// PARAMÈTRES DE L'ÉCOLE
+// ---------------------------------------------------------------------------
+async function loadSchoolSettings() {
+  const { school, account } = await Api.get('/api/admin/school-settings')
+  document.getElementById('set-school-name').value = school?.name || ''
+  document.getElementById('set-head-name').value = school?.head_name || ''
+  document.getElementById('set-address').value = school?.address || ''
+  document.getElementById('set-phone').value = school?.phone || ''
+  document.getElementById('set-admin-name').value = account?.name || ''
+  document.getElementById('set-email').value = account?.email || ''
+  document.getElementById('set-current-password').value = ''
+  document.getElementById('set-new-password').value = ''
+}
+
+document.getElementById('school-info-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault()
+  try {
+    await Api.put('/api/admin/school-settings', {
+      school_name: document.getElementById('set-school-name').value.trim() || null,
+      head_name: document.getElementById('set-head-name').value.trim() || null,
+      address: document.getElementById('set-address').value.trim() || null,
+      phone: document.getElementById('set-phone').value.trim() || null
+    })
+    toast('Informations de l\'école mises à jour', 'success')
+    // Rafraîchir le nom affiché dans l'entête
+    const me = await Api.get('/api/auth/me')
+    currentSchool = me.school
+  } catch (err) { toast(err.message, 'error') }
+})
+
+document.getElementById('account-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault()
+  try {
+    const newPwd = document.getElementById('set-new-password').value
+    const curPwd = document.getElementById('set-current-password').value
+    if (newPwd && !curPwd) { toast('Entrez votre mot de passe actuel pour le changer', 'error'); return }
+    await Api.put('/api/admin/school-settings', {
+      admin_name: document.getElementById('set-admin-name').value.trim() || null,
+      email: document.getElementById('set-email').value.trim() || null,
+      current_password: curPwd || null,
+      new_password: newPwd || null
+    })
+    toast('Compte mis à jour' + (newPwd ? ' (nouveau mot de passe actif)' : ''), 'success')
+    document.getElementById('set-current-password').value = ''
+    document.getElementById('set-new-password').value = ''
+  } catch (err) { toast(err.message, 'error') }
+})
 
 init()

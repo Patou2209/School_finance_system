@@ -35,9 +35,16 @@ const ALLOWED_OPTIONS = [
   'Latin-philosophie',
   'Menuiserie',
   'Nutrition',
-  'Pédagogie générale',
+  'Pedagogie generale',
   'Scientifique'
 ]
+
+// Supprime les accents (évite les problèmes d'encodage Unicode NFC/NFD entre
+// navigateurs/OS — ex. « Pédagogie générale » saisi sous Windows ne matchait
+// pas la valeur attendue et l'option n'apparaissait pas sur les reçus).
+function stripAccents(s: string): string {
+  return s ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : s
+}
 
 // ---------------------------------------------------------------------------
 // ANNEES SCOLAIRES
@@ -136,7 +143,8 @@ admin.post('/classes', async (c) => {
   if (level && !ALLOWED_LEVELS.includes(level)) {
     return c.json({ error: `Niveau invalide (autorisés: ${ALLOWED_LEVELS.join(', ')})` }, 400)
   }
-  if (option && !ALLOWED_OPTIONS.includes(option)) {
+  const optionNorm = option ? stripAccents(String(option)) : option
+  if (optionNorm && !ALLOWED_OPTIONS.includes(optionNorm)) {
     return c.json({ error: `Option invalide (autorisées: ${ALLOWED_OPTIONS.join(', ')})` }, 400)
   }
   if (!login_email || !login_password) {
@@ -158,19 +166,22 @@ admin.post('/classes', async (c) => {
   // Vérification explicite du doublon pour un message clair.
   // NB: le nom envoyé par le frontend inclut désormais l'option (ex: "1ère Scientifique"),
   // ce qui permet d'avoir "1ère Scientifique" ET "1ère Pédagogie générale" la même année.
+  // Normaliser (sans accents) le nom et l'option pour éviter tout problème
+  // d'encodage Unicode à l'affichage (reçus, listes…)
+  const nameNorm = stripAccents(String(name).trim())
   const dup = await db
     .prepare(`SELECT id FROM classes WHERE school_year_id = ? AND name = ?`)
-    .bind(school_year_id, name)
+    .bind(school_year_id, nameNorm)
     .first()
   if (dup) {
-    return c.json({ error: `Une classe nommée « ${name} » existe déjà pour cette année scolaire. Choisissez une option différente ou ajoutez une étiquette (ex: A, B) pour la distinguer.` }, 409)
+    return c.json({ error: `Une classe nommée « ${nameNorm} » existe déjà pour cette année scolaire. Choisissez une option différente ou ajoutez une étiquette (ex: A, B) pour la distinguer.` }, 409)
   }
 
   let classId: number
   try {
     const result = await db
       .prepare(`INSERT INTO classes (school_id, school_year_id, name, level, option) VALUES (?, ?, ?, ?, ?)`)
-      .bind(sid, school_year_id, name, level || null, option || null)
+      .bind(sid, school_year_id, nameNorm, level || null, optionNorm || null)
       .run()
     classId = result.meta.last_row_id as number
   } catch (e: any) {
@@ -182,14 +193,14 @@ admin.post('/classes', async (c) => {
     .prepare(
       `INSERT INTO users (school_id, role, class_id, name, email, password_hash, password_salt) VALUES (?, 'classe', ?, ?, ?, ?, ?)`
     )
-    .bind(sid, classId, `Classe ${name}`, emailNorm, hash, salt)
+    .bind(sid, classId, `Classe ${nameNorm}`, emailNorm, hash, salt)
     .run()
 
   // Si la nouvelle classe appartient à un groupe de frais (7ème/8ème, ou
   // option humanités) et que des frais existent déjà pour ce groupe, elle
   // en hérite automatiquement.
   try {
-    const newCls = { id: classId, name, level: level || null, option: option || null, school_year_id }
+    const newCls = { id: classId, name: nameNorm, level: level || null, option: optionNorm || null, school_year_id }
     const groupIds = (await feeGroupClassIds(db, sid, newCls)).filter((cid) => cid !== classId)
     if (groupIds.length > 0) {
       const { results: groupFees } = await db
@@ -216,7 +227,9 @@ admin.post('/classes', async (c) => {
 })
 
 admin.patch('/classes/:id', async (c) => {
-  const { name, level, option } = await c.req.json<any>()
+  let { name, level, option } = await c.req.json<any>()
+  if (name) name = stripAccents(String(name).trim())
+  if (option && option !== '__none__') option = stripAccents(String(option))
   if (level && !ALLOWED_LEVELS.includes(level)) {
     return c.json({ error: `Niveau invalide (autorisés: ${ALLOWED_LEVELS.join(', ')})` }, 400)
   }
@@ -594,11 +607,14 @@ admin.post('/students/:id/transfer', async (c) => {
 // Quand on enregistre/supprime un frais, il est appliqué/retiré pour TOUTES
 // les classes du même groupe.
 // ---------------------------------------------------------------------------
+// Comparaison insensible aux accents : les classes déjà en base peuvent avoir
+// « 1ère » (avec accent) et les nouvelles « 1ere » (sans) — les deux doivent
+// appartenir au même groupe de frais.
 function classOrdinal(name: string): string {
-  return String(name || '').trim().split(/\s+/)[0]
+  return stripAccents(String(name || '').trim().split(/\s+/)[0]).toLowerCase()
 }
-const HUM_JUNIOR_ORDINALS = ['1ère', '2ème', '3ème']
-const CTEB_ORDINALS = ['7ème', '8ème']
+const HUM_JUNIOR_ORDINALS = ['1ere', '2eme', '3eme']
+const CTEB_ORDINALS = ['7eme', '8eme']
 
 async function feeGroupClassIds(db: D1Database, sid: number, cls: any): Promise<number[]> {
   const ord = classOrdinal(cls.name)
@@ -610,16 +626,17 @@ async function feeGroupClassIds(db: D1Database, sid: number, cls: any): Promise<
   if (CTEB_ORDINALS.includes(ord)) {
     return all.filter((k: any) => classOrdinal(k.name) === ord).map((k: any) => k.id)
   }
-  // Classes avec option (humanités)
+  // Classes avec option (humanités) — comparaison d'option insensible aux accents
+  const optNorm = (v: any) => stripAccents(String(v || '')).toLowerCase()
   if (cls.option) {
     if (HUM_JUNIOR_ORDINALS.includes(ord)) {
       // 1ère-3ème de la même option = même groupe
       return all
-        .filter((k: any) => k.option === cls.option && HUM_JUNIOR_ORDINALS.includes(classOrdinal(k.name)))
+        .filter((k: any) => optNorm(k.option) === optNorm(cls.option) && HUM_JUNIOR_ORDINALS.includes(classOrdinal(k.name)))
         .map((k: any) => k.id)
     }
     // 4ème (ou autre ordinal) de la même option = groupe (même ordinal + même option)
-    return all.filter((k: any) => k.option === cls.option && classOrdinal(k.name) === ord).map((k: any) => k.id)
+    return all.filter((k: any) => optNorm(k.option) === optNorm(cls.option) && classOrdinal(k.name) === ord).map((k: any) => k.id)
   }
   // Classe individuelle
   return [cls.id]
@@ -744,6 +761,58 @@ admin.get('/dashboard', async (c) => {
     total_collected: totalCollected?.total ?? 0,
     today_collected: todayCollected?.total ?? 0
   })
+})
+
+// ---------------------------------------------------------------------------
+// PARAMÈTRES DE L'ÉCOLE : l'admin modifie les infos de son école et son compte
+// ---------------------------------------------------------------------------
+// GET /api/admin/school-settings — infos actuelles (école + compte admin)
+admin.get('/school-settings', async (c) => {
+  const db = c.env.DB
+  const user = c.get('user') as any
+  const school = await db.prepare(`SELECT id, code, name, address, phone, head_name, currency FROM schools WHERE id = ?`).bind(schoolId(c)).first<any>()
+  const account = await db.prepare(`SELECT id, name, email FROM users WHERE id = ?`).bind(user.uid).first<any>()
+  return c.json({ school, account })
+})
+
+// PUT /api/admin/school-settings — mise à jour école + compte admin
+admin.put('/school-settings', async (c) => {
+  const db = c.env.DB
+  const user = c.get('user') as any
+  const { school_name, address, phone, head_name, admin_name, email, current_password, new_password } = await c.req.json<any>()
+
+  // 1) Infos de l'école
+  await db
+    .prepare(`UPDATE schools SET name = COALESCE(?, name), address = COALESCE(?, address), phone = COALESCE(?, phone), head_name = COALESCE(?, head_name) WHERE id = ?`)
+    .bind(school_name ?? null, address ?? null, phone ?? null, head_name ?? null, schoolId(c))
+    .run()
+
+  // 2) Nom du compte admin
+  if (admin_name) {
+    await db.prepare(`UPDATE users SET name = ? WHERE id = ?`).bind(String(admin_name).trim(), user.uid).run()
+  }
+
+  // 3) Email de connexion (vérifier l'unicité)
+  if (email) {
+    const emailNorm = String(email).toLowerCase().trim()
+    const existing = await db.prepare(`SELECT id FROM users WHERE email = ? AND id != ?`).bind(emailNorm, user.uid).first()
+    if (existing) return c.json({ error: 'Cet email est déjà utilisé par un autre compte' }, 409)
+    await db.prepare(`UPDATE users SET email = ? WHERE id = ?`).bind(emailNorm, user.uid).run()
+  }
+
+  // 4) Mot de passe (exige le mot de passe actuel)
+  if (new_password) {
+    if (!current_password) return c.json({ error: 'Le mot de passe actuel est requis pour changer le mot de passe' }, 400)
+    if (String(new_password).length < 6) return c.json({ error: 'Le nouveau mot de passe doit contenir au moins 6 caractères' }, 400)
+    const me = await db.prepare(`SELECT password_hash, password_salt FROM users WHERE id = ?`).bind(user.uid).first<any>()
+    const { verifyPassword } = await import('../utils/crypto')
+    const ok = await verifyPassword(current_password, me.password_hash, me.password_salt)
+    if (!ok) return c.json({ error: 'Mot de passe actuel incorrect' }, 401)
+    const { hash, salt } = await hashPassword(new_password)
+    await db.prepare(`UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?`).bind(hash, salt, user.uid).run()
+  }
+
+  return c.json({ success: true })
 })
 
 export default admin
