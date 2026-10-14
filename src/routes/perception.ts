@@ -9,6 +9,15 @@ import { getCurrentSchoolYear, nextReceiptNumber, syncCashbookAutoEntry, getTota
 
 const perception = new Hono<AppEnv>()
 
+// Fragments SQL réutilisables pour enrichir les reçus EN UNE SEULE requête D1
+// (frais applicables selon la catégorie de l'élève + total déjà payé) — évite
+// les boucles N+1 qui consommaient énormément de lectures D1.
+const RECEIPT_FEE_SQL = `COALESCE(
+  (SELECT f1.montant FROM fee_structures f1 WHERE f1.class_id = st.class_id AND f1.trimester_id = p.trimester_id AND f1.categorie = st.categorie),
+  (SELECT f2.montant FROM fee_structures f2 WHERE f2.class_id = st.class_id AND f2.trimester_id = p.trimester_id AND f2.categorie = 'normal'),
+  0)`
+const RECEIPT_PAID_SQL = `(SELECT COALESCE(SUM(p2.montant),0) FROM payments p2 WHERE p2.student_id = p.student_id AND p2.trimester_id = p.trimester_id AND p2.cancelled = 0)`
+
 perception.use('*', requireAuth, async (c, next) => {
   const user = c.get('user') as any
   // Exception : /class-receipts est aussi accessible au rôle 'classe' (une
@@ -53,40 +62,29 @@ perception.get('/registre-summary', async (c) => {
   const trimesterId = c.req.query('trimester_id')
   if (!trimesterId) return c.json({ error: 'trimester_id requis' }, 400)
 
-  let classesQuery = `SELECT id, name, level, option FROM classes WHERE school_id = ? ORDER BY name`
-  let classBinds: any[] = [user.school_id]
+  // UNE SEULE requête D1 pour toutes les classes (au lieu de 2 requêtes par
+  // classe) — indispensable pour rester dans les limites Cloudflare (nombre de
+  // sous-requêtes par requête et quota de lectures D1), surtout avec le
+  // rafraîchissement automatique.
+  let summaryQuery = `
+    SELECT cl.id as class_id, cl.name as class_name, cl.level, cl.option,
+      (SELECT COUNT(*) FROM students st WHERE st.class_id = cl.id AND st.active = 1) as students_count,
+      (SELECT COUNT(DISTINCT p.student_id) FROM payments p WHERE p.class_id = cl.id AND p.date_paiement = ? AND p.trimester_id = ? AND p.cancelled = 0) as paid_count,
+      (SELECT COALESCE(SUM(p.montant),0) FROM payments p WHERE p.class_id = cl.id AND p.date_paiement = ? AND p.trimester_id = ? AND p.cancelled = 0) as total_collected
+    FROM classes cl WHERE cl.school_id = ? ORDER BY cl.name`
+  let summaryBinds: any[] = [date, trimesterId, date, trimesterId, user.school_id]
   if (user.role === 'percepteur') {
-    classesQuery = `SELECT cl.id, cl.name, cl.level, cl.option FROM classes cl
-                     JOIN class_percepteurs cp ON cp.class_id = cl.id
-                     WHERE cp.percepteur_id = ? AND cl.school_id = ?
-                     ORDER BY cl.name`
-    classBinds = [user.uid, user.school_id]
+    summaryQuery = `
+      SELECT cl.id as class_id, cl.name as class_name, cl.level, cl.option,
+        (SELECT COUNT(*) FROM students st WHERE st.class_id = cl.id AND st.active = 1) as students_count,
+        (SELECT COUNT(DISTINCT p.student_id) FROM payments p WHERE p.class_id = cl.id AND p.date_paiement = ? AND p.trimester_id = ? AND p.cancelled = 0) as paid_count,
+        (SELECT COALESCE(SUM(p.montant),0) FROM payments p WHERE p.class_id = cl.id AND p.date_paiement = ? AND p.trimester_id = ? AND p.cancelled = 0) as total_collected
+      FROM classes cl
+      JOIN class_percepteurs cp ON cp.class_id = cl.id
+      WHERE cp.percepteur_id = ? AND cl.school_id = ? ORDER BY cl.name`
+    summaryBinds = [date, trimesterId, date, trimesterId, user.uid, user.school_id]
   }
-  const { results: classes } = await db.prepare(classesQuery).bind(...classBinds).all<any>()
-
-  const summary = []
-  for (const cl of classes) {
-    const studentsCountRow = await db
-      .prepare(`SELECT COUNT(*) as cnt FROM students WHERE class_id = ? AND active = 1`)
-      .bind(cl.id)
-      .first<{ cnt: number }>()
-    const dayRow = await db
-      .prepare(
-        `SELECT COUNT(DISTINCT student_id) as paid_count, COALESCE(SUM(montant),0) as total
-         FROM payments WHERE class_id = ? AND date_paiement = ? AND trimester_id = ? AND cancelled = 0`
-      )
-      .bind(cl.id, date, trimesterId)
-      .first<{ paid_count: number; total: number }>()
-    summary.push({
-      class_id: cl.id,
-      class_name: cl.name,
-      level: cl.level,
-      option: cl.option,
-      students_count: studentsCountRow?.cnt ?? 0,
-      paid_count: dayRow?.paid_count ?? 0,
-      total_collected: dayRow?.total ?? 0
-    })
-  }
+  const { results: summary } = await db.prepare(summaryQuery).bind(...summaryBinds).all<any>()
 
   return c.json({ date, trimester_id: Number(trimesterId), classes: summary })
 })
@@ -99,40 +97,40 @@ perception.get('/debts-summary', async (c) => {
   const trimesterId = c.req.query('trimester_id')
   if (!trimesterId) return c.json({ error: 'trimester_id requis' }, 400)
 
-  let classesQuery = `SELECT id, name, level, option FROM classes WHERE school_id = ? ORDER BY name`
-  let classBinds: any[] = [user.school_id]
+  // UNE SEULE requête D1 : dette de chaque élève calculée en SQL puis agrégée
+  // par classe (évite 1 requête par classe — limites Cloudflare D1).
+  let debtQuery = `
+    SELECT cl.id as class_id, cl.name as class_name, cl.level, cl.option,
+           COUNT(CASE WHEN d.debt > 0 THEN 1 END) as debtors_count,
+           COALESCE(SUM(CASE WHEN d.debt > 0 THEN d.debt ELSE 0 END), 0) as total_debt
+    FROM classes cl
+    LEFT JOIN (
+      SELECT st.class_id as cid,
+        (${FEE_FOR_STUDENT_SQL}) - COALESCE((SELECT SUM(p.montant) FROM payments p WHERE p.student_id = st.id AND p.trimester_id = ? AND p.cancelled = 0), 0) as debt
+      FROM students st WHERE st.active = 1
+    ) d ON d.cid = cl.id
+    WHERE cl.school_id = ?
+    GROUP BY cl.id, cl.name, cl.level, cl.option
+    ORDER BY cl.name`
+  let debtBinds: any[] = [trimesterId, trimesterId, trimesterId, user.school_id]
   if (user.role === 'percepteur') {
-    classesQuery = `SELECT cl.id, cl.name, cl.level, cl.option FROM classes cl
-                     JOIN class_percepteurs cp ON cp.class_id = cl.id
-                     WHERE cp.percepteur_id = ? AND cl.school_id = ?
-                     ORDER BY cl.name`
-    classBinds = [user.uid, user.school_id]
+    debtQuery = `
+      SELECT cl.id as class_id, cl.name as class_name, cl.level, cl.option,
+             COUNT(CASE WHEN d.debt > 0 THEN 1 END) as debtors_count,
+             COALESCE(SUM(CASE WHEN d.debt > 0 THEN d.debt ELSE 0 END), 0) as total_debt
+      FROM classes cl
+      JOIN class_percepteurs cp ON cp.class_id = cl.id
+      LEFT JOIN (
+        SELECT st.class_id as cid,
+          (${FEE_FOR_STUDENT_SQL}) - COALESCE((SELECT SUM(p.montant) FROM payments p WHERE p.student_id = st.id AND p.trimester_id = ? AND p.cancelled = 0), 0) as debt
+        FROM students st WHERE st.active = 1
+      ) d ON d.cid = cl.id
+      WHERE cp.percepteur_id = ? AND cl.school_id = ?
+      GROUP BY cl.id, cl.name, cl.level, cl.option
+      ORDER BY cl.name`
+    debtBinds = [trimesterId, trimesterId, trimesterId, user.uid, user.school_id]
   }
-  const { results: classes } = await db.prepare(classesQuery).bind(...classBinds).all<any>()
-
-  const summary = []
-  for (const cl of classes) {
-    const { results: rows } = await db
-      .prepare(
-        `SELECT st.id,
-           ${FEE_FOR_STUDENT_SQL} as fee_amount,
-           COALESCE((SELECT SUM(p.montant) FROM payments p WHERE p.student_id = st.id AND p.trimester_id = ? AND p.cancelled = 0), 0) as total_paid
-         FROM students st
-         WHERE st.class_id = ? AND st.active = 1`
-      )
-      .bind(trimesterId, trimesterId, trimesterId, cl.id)
-      .all<any>()
-    const debtors = rows.filter((r: any) => r.fee_amount - r.total_paid > 0)
-    const totalDebt = debtors.reduce((sum: number, r: any) => sum + (r.fee_amount - r.total_paid), 0)
-    summary.push({
-      class_id: cl.id,
-      class_name: cl.name,
-      level: cl.level,
-      option: cl.option,
-      debtors_count: debtors.length,
-      total_debt: totalDebt
-    })
-  }
+  const { results: summary } = await db.prepare(debtQuery).bind(...debtBinds).all<any>()
 
   return c.json({ trimester_id: Number(trimesterId), classes: summary })
 })
@@ -227,7 +225,9 @@ perception.get('/class-receipts', async (c) => {
   const { results: payments } = await db
     .prepare(
       `SELECT p.*, st.nom, st.post_nom, st.prenom, st.categorie, cl.name as class_name, t.name as trimester_name, t.number as trimester_number,
-              u.name as percepteur_name, sy.label as year_label
+              u.name as percepteur_name, sy.label as year_label,
+              ${RECEIPT_FEE_SQL} as fee_amount,
+              ${RECEIPT_PAID_SQL} as total_paid
        FROM payments p
        JOIN students st ON st.id = p.student_id
        JOIN classes cl ON cl.id = p.class_id
@@ -240,13 +240,8 @@ perception.get('/class-receipts', async (c) => {
     .bind(classId, dateFrom, dateTo, user.school_id)
     .all<any>()
 
-  // Calculer solde/total_paid par élève+trimestre pour chaque reçu affiché
-  const enriched = []
-  for (const p of payments) {
-    const feeAmount = await getFeeAmount(db, p.class_id, p.trimester_id, p.categorie)
-    const totalPaid = await getTotalPaid(db, p.student_id, p.trimester_id)
-    enriched.push({ ...p, fee_amount: feeAmount, total_paid: totalPaid, balance: feeAmount - totalPaid })
-  }
+  // fee_amount/total_paid calculés directement en SQL (1 seule requête D1)
+  const enriched = payments.map((p: any) => ({ ...p, balance: p.fee_amount - p.total_paid }))
 
   return c.json({ school, class: cls, date: dateFrom, date_from: dateFrom, date_to: dateTo, payments: enriched, count: enriched.length })
 })
@@ -275,7 +270,9 @@ perception.get('/my-classes-receipts', async (c) => {
   const { results: payments } = await db
     .prepare(
       `SELECT p.*, st.nom, st.post_nom, st.prenom, st.categorie, cl.name as class_name, t.name as trimester_name, t.number as trimester_number,
-              u.name as percepteur_name, sy.label as year_label
+              u.name as percepteur_name, sy.label as year_label,
+              ${RECEIPT_FEE_SQL} as fee_amount,
+              ${RECEIPT_PAID_SQL} as total_paid
        FROM payments p
        JOIN students st ON st.id = p.student_id
        JOIN classes cl ON cl.id = p.class_id
@@ -288,12 +285,7 @@ perception.get('/my-classes-receipts', async (c) => {
     .bind(user.school_id, dateFrom, dateTo, ...binds)
     .all<any>()
 
-  const enriched = []
-  for (const p of payments) {
-    const feeAmount = await getFeeAmount(db, p.class_id, p.trimester_id, p.categorie)
-    const totalPaid = await getTotalPaid(db, p.student_id, p.trimester_id)
-    enriched.push({ ...p, fee_amount: feeAmount, total_paid: totalPaid, balance: feeAmount - totalPaid })
-  }
+  const enriched = payments.map((p: any) => ({ ...p, balance: p.fee_amount - p.total_paid }))
 
   return c.json({
     school,
@@ -330,7 +322,9 @@ perception.get('/percepteur-receipts', async (c) => {
   const { results: payments } = await db
     .prepare(
       `SELECT p.*, st.nom, st.post_nom, st.prenom, st.categorie, cl.name as class_name, t.name as trimester_name, t.number as trimester_number,
-              u.name as percepteur_name, sy.label as year_label
+              u.name as percepteur_name, sy.label as year_label,
+              ${RECEIPT_FEE_SQL} as fee_amount,
+              ${RECEIPT_PAID_SQL} as total_paid
        FROM payments p
        JOIN students st ON st.id = p.student_id
        JOIN classes cl ON cl.id = p.class_id
@@ -343,12 +337,7 @@ perception.get('/percepteur-receipts', async (c) => {
     .bind(percepteurId, dateFrom, dateTo, user.school_id)
     .all<any>()
 
-  const enriched = []
-  for (const p of payments) {
-    const feeAmount = await getFeeAmount(db, p.class_id, p.trimester_id, p.categorie)
-    const totalPaid = await getTotalPaid(db, p.student_id, p.trimester_id)
-    enriched.push({ ...p, fee_amount: feeAmount, total_paid: totalPaid, balance: feeAmount - totalPaid })
-  }
+  const enriched = payments.map((p: any) => ({ ...p, balance: p.fee_amount - p.total_paid }))
 
   return c.json({ school, percepteur, date_from: dateFrom, date_to: dateTo, payments: enriched, count: enriched.length })
 })

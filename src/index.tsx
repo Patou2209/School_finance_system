@@ -16,6 +16,16 @@ import classeRoutes from './routes/classe'
 const app = new Hono<AppEnv>()
 
 // ----------------------------------------------------------------------------
+// Gestion globale des erreurs : renvoyer le message réel (ex. erreurs D1 :
+// limite de lectures atteinte, table manquante…) au lieu d'un 500 muet.
+// ----------------------------------------------------------------------------
+app.onError((err, c) => {
+  console.error('Erreur serveur:', err)
+  const msg = (err as any)?.message || String(err)
+  return c.json({ error: `Erreur serveur : ${msg}` }, 500)
+})
+
+// ----------------------------------------------------------------------------
 // Fichiers statiques (frontend HTML/CSS/JS servi depuis /public)
 // ----------------------------------------------------------------------------
 app.use('/static/*', serveStatic({ root: './public' }))
