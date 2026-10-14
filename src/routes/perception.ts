@@ -251,6 +251,61 @@ perception.get('/class-receipts', async (c) => {
   return c.json({ school, class: cls, date: dateFrom, date_from: dateFrom, date_to: dateTo, payments: enriched, count: enriched.length })
 })
 
+// GET /api/perception/my-classes-receipts?date_from=&date_to=
+// Tous les reçus (paiements non annulés) de TOUTES les classes affectées au
+// percepteur connecté, sur une plage de dates — impression groupée en une fois.
+// (Pour un admin : toutes les classes de l'école.)
+perception.get('/my-classes-receipts', async (c) => {
+  const user = c.get('user')
+  const db = c.env.DB
+  const dateFrom = c.req.query('date_from')
+  const dateTo = c.req.query('date_to') || dateFrom
+  if (!dateFrom) return c.json({ error: 'date_from requis' }, 400)
+
+  const school = await db.prepare(`SELECT * FROM schools WHERE id = ?`).bind(user.school_id).first<any>()
+
+  // Classes concernées : celles du percepteur, ou toutes pour un admin
+  let classFilterSql = ''
+  const binds: any[] = []
+  if (user.role === 'percepteur') {
+    classFilterSql = `AND p.class_id IN (SELECT class_id FROM class_percepteurs WHERE percepteur_id = ?)`
+    binds.push(user.uid)
+  }
+
+  const { results: payments } = await db
+    .prepare(
+      `SELECT p.*, st.nom, st.post_nom, st.prenom, st.categorie, cl.name as class_name, t.name as trimester_name, t.number as trimester_number,
+              u.name as percepteur_name, sy.label as year_label
+       FROM payments p
+       JOIN students st ON st.id = p.student_id
+       JOIN classes cl ON cl.id = p.class_id
+       JOIN trimesters t ON t.id = p.trimester_id
+       JOIN school_years sy ON sy.id = t.school_year_id
+       JOIN users u ON u.id = p.percepteur_id
+       WHERE p.school_id = ? AND p.date_paiement >= ? AND p.date_paiement <= ? AND p.cancelled = 0 ${classFilterSql}
+       ORDER BY cl.name ASC, p.date_paiement ASC, st.nom ASC, p.id ASC`
+    )
+    .bind(user.school_id, dateFrom, dateTo, ...binds)
+    .all<any>()
+
+  const enriched = []
+  for (const p of payments) {
+    const feeAmount = await getFeeAmount(db, p.class_id, p.trimester_id, p.categorie)
+    const totalPaid = await getTotalPaid(db, p.student_id, p.trimester_id)
+    enriched.push({ ...p, fee_amount: feeAmount, total_paid: totalPaid, balance: feeAmount - totalPaid })
+  }
+
+  return c.json({
+    school,
+    all_classes: true,
+    date_from: dateFrom,
+    date_to: dateTo,
+    payments: enriched,
+    count: enriched.length,
+    classes_count: new Set(enriched.map((p: any) => p.class_id)).size,
+  })
+})
+
 // GET /api/perception/percepteur-receipts?percepteur_id=&date_from=&date_to=
 // Tous les reçus perçus par UN PERCEPTEUR sur une plage de dates (toutes
 // classes confondues) — pour l'impression groupée côté école.
@@ -362,6 +417,27 @@ perception.post('/pay', async (c) => {
 
   const schoolYear = await db.prepare(`SELECT * FROM school_years WHERE id = ?`).bind(trimester.school_year_id).first<any>()
   const school = await db.prepare(`SELECT * FROM schools WHERE id = ?`).bind(user.school_id).first<any>()
+
+  // CONTRÔLE STRICT : interdire toute perception dépassant les frais demandés.
+  // On vérifie le montant saisi par rapport au SOLDE restant (frais - déjà payé).
+  const feeDue = await getFeeAmount(db, student.class_id, Number(trimester_id), student.categorie)
+  const alreadyPaid = await getTotalPaid(db, Number(student_id), Number(trimester_id))
+  const remaining = feeDue - alreadyPaid
+
+  if (feeDue <= 0) {
+    return c.json({ error: "Aucun frais n'est fixé pour cette classe et ce trimestre. Perception impossible." }, 400)
+  }
+  if (remaining <= 0) {
+    return c.json({ error: `Cet élève a déjà soldé ses frais du trimestre (${feeDue} ${school.currency} payés en totalité). Aucune perception supplémentaire n'est autorisée.` }, 400)
+  }
+  if (montant > remaining) {
+    return c.json({
+      error: `Montant refusé : la somme saisie (${montant} ${school.currency}) est supérieure aux frais demandés. Frais du trimestre : ${feeDue} ${school.currency}, déjà payé : ${alreadyPaid} ${school.currency}, reste à payer : ${remaining} ${school.currency}. Vous ne pouvez percevoir que ${remaining} ${school.currency} au maximum.`,
+      fee_amount: feeDue,
+      total_paid: alreadyPaid,
+      remaining,
+    }, 400)
+  }
 
   const payDate = date_paiement || new Date().toISOString().slice(0, 10)
   const receiptNumber = await nextReceiptNumber(db, user.school_id, schoolYear.id, school.code, schoolYear.label.replace(/[^0-9]/g, ''))

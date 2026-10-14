@@ -1113,7 +1113,9 @@ async function showPayModal(studentId, studentName, trimesterId) {
         <div class="bg-slate-50 rounded-lg p-2"><p class="text-xs text-slate-500">Solde dû</p><p class="font-bold text-sm text-red-600">${fmtMoney(situation.balance, currentSchool?.currency)}</p></div>
       </div>
       <form id="pay-form" class="space-y-3">
-        <div><label class="text-xs font-medium text-slate-600">Montant à percevoir *</label><input required type="number" step="0.01" min="0.01" id="pay-amount" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" placeholder="0.00"></div>
+        <div><label class="text-xs font-medium text-slate-600">Montant à percevoir *</label><input required type="number" step="0.01" min="0.01" max="${situation.balance}" id="pay-amount" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" placeholder="0.00">
+          <p class="text-xs text-slate-400 mt-1"><i class="fas fa-circle-info mr-1"></i>Maximum autorisé : <span class="font-semibold text-slate-600">${fmtMoney(situation.balance, currentSchool?.currency)}</span> (le système refuse toute somme supérieure aux frais demandés)</p>
+        </div>
         <div class="flex justify-end gap-2 pt-2">
           <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100">Annuler</button>
           <button type="submit" class="px-4 py-2 text-sm rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold">Enregistrer et générer le reçu</button>
@@ -1124,6 +1126,10 @@ async function showPayModal(studentId, studentName, trimesterId) {
     e.preventDefault()
     try {
       const montant = parseFloat(document.getElementById('pay-amount').value)
+      if (montant > situation.balance) {
+        toast(`Montant refusé : la somme saisie est supérieure aux frais demandés. Reste à payer : ${fmtMoney(situation.balance, currentSchool?.currency)} maximum.`, 'error')
+        return
+      }
       const result = await Api.post('/api/perception/pay', {
         student_id: studentId, trimester_id: trimesterId, montant,
         date_paiement: document.getElementById('perc-date').value || todayStr()
