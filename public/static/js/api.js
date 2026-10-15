@@ -219,7 +219,7 @@ function closeModal() {
 // l'école voie presque immédiatement ce que perçoit le percepteur (et vice
 // versa) sans devoir recharger la page.
 // ---------------------------------------------------------------------------
-const AUTO_REFRESH_INTERVAL_MS = 10000 // 10 secondes
+const AUTO_REFRESH_INTERVAL_MS = 30000 // 30 secondes (économise les lectures D1, reste quasi temps réel)
 let _autoRefreshTimer = null
 let _autoRefreshFn = null
 

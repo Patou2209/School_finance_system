@@ -24,30 +24,27 @@ reports.get('/trimester/:id', async (c) => {
   // 1) Perception des frais scolaires (attendu vs perçu) par classe
   //    L'attendu tient compte de la catégorie de chaque élève (normal /
   //    indigent / fils d'enseignant), avec repli sur le tarif 'normal'.
+  // UNE SEULE requête pour toutes les classes (perçu inclus via sous-requête
+  // corrélée) — évite 1 requête par classe (N+1) qui gonflait les rows read D1.
   const classRows = await db
     .prepare(
       `SELECT cl.id as class_id, cl.name as class_name,
         (SELECT COUNT(*) FROM students st WHERE st.class_id = cl.id AND st.active = 1) as student_count,
         COALESCE((SELECT montant FROM fee_structures WHERE class_id = cl.id AND trimester_id = ? AND categorie = 'normal'), 0) as fee_amount,
-        (SELECT COALESCE(SUM(${FEE_FOR_STUDENT_SQL}), 0) FROM students st WHERE st.class_id = cl.id AND st.active = 1) as attendu
+        (SELECT COALESCE(SUM(${FEE_FOR_STUDENT_SQL}), 0) FROM students st WHERE st.class_id = cl.id AND st.active = 1) as attendu,
+        (SELECT COALESCE(SUM(p.montant),0) FROM payments p WHERE p.class_id = cl.id AND p.trimester_id = ? AND p.cancelled = 0) as percu
        FROM classes cl
        WHERE cl.school_year_id = ? ORDER BY cl.name`
     )
-    .bind(trimesterId, trimesterId, trimesterId, trimester.school_year_id)
+    .bind(trimesterId, trimesterId, trimesterId, trimesterId, trimester.school_year_id)
     .all<any>()
 
   let totalAttendu = 0
   let totalPercu = 0
   const classDetails = []
   for (const cl of classRows.results) {
-    const paidRow = await db
-      .prepare(
-        `SELECT COALESCE(SUM(montant),0) as total FROM payments WHERE class_id = ? AND trimester_id = ? AND cancelled = 0`
-      )
-      .bind(cl.class_id, trimesterId)
-      .first<{ total: number }>()
     const attendu = cl.attendu
-    const percu = paidRow?.total ?? 0
+    const percu = cl.percu ?? 0
     totalAttendu += attendu
     totalPercu += percu
     classDetails.push({
