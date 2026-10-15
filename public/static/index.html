@@ -33,9 +33,10 @@
     }
   }
 </script>
-<link href="style.css" rel="stylesheet">
+<link href="/static/css/style.css?v=8" rel="stylesheet">
 
 <style>
+  body { overflow-x: clip; }
   html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
   body { font-family: 'Figtree', system-ui, sans-serif; color: #0F1B33; background: #fff; -webkit-font-smoothing: antialiased; }
   h1, h2, h3 { letter-spacing: -0.02em; }
@@ -77,7 +78,7 @@
   <nav class="max-w-7xl mx-auto px-5 sm:px-8">
     <div class="flex items-center justify-between h-16">
       <a href="#accueil" id="nav-logo" class="flex items-center" aria-label="ScolaPay, accueil">
-        <img src="/public/static/img/logo-scolapay.png" alt="ScolaPay" class="h-7 w-auto" width="150" height="60">
+        <img src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt="ScolaPay" class="js-logo h-7 w-auto" width="130" height="28">
       </a>
 
       <div class="hidden md:flex items-center gap-1" id="nav-links-desktop">
@@ -112,8 +113,8 @@
 <section id="accueil" class="relative pt-28 pb-16 lg:pt-36 lg:pb-24 overflow-hidden">
   <div class="hero-grid absolute inset-0 pointer-events-none" aria-hidden="true"></div>
 
-  <div class="relative max-w-7xl mx-auto px-5 sm:px-8 grid lg:grid-cols-12 gap-14 items-center">
-    <div class="lg:col-span-6">
+  <div class="relative max-w-7xl mx-auto px-5 sm:px-8 grid grid-cols-1 lg:grid-cols-12 gap-14 items-center">
+    <div class="lg:col-span-6 min-w-0">
       <p class="rise inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white pl-2 pr-3.5 py-1 text-[13px] font-medium text-ink-soft">
         <span class="w-6 h-6 rounded-full bg-accent-soft text-accent flex items-center justify-center"><i class="ph-fill ph-lightning text-sm"></i></span>
         Perception, caisse, budget et rapports au même endroit
@@ -153,7 +154,7 @@
     </div>
 
     <!-- Aperçu de l'application -->
-    <div class="lg:col-span-6 relative rise rise-3">
+    <div class="lg:col-span-6 min-w-0 relative rise rise-3">
       <div class="bg-white rounded-2xl border border-slate-200 shadow-[0_30px_70px_-30px_rgba(11,74,174,.35)] overflow-hidden">
         <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
           <div class="flex items-center gap-3">
@@ -169,21 +170,21 @@
         </div>
 
         <div class="overflow-x-auto">
-          <table class="w-full text-sm num min-w-[460px]">
+          <table class="w-full text-xs sm:text-sm num">
             <thead>
               <tr class="text-left text-xs text-ink-soft bg-slate-50">
-                <th class="px-5 py-2.5 font-semibold">Date</th>
-                <th class="px-3 py-2.5 font-semibold">Libellé</th>
-                <th class="px-3 py-2.5 font-semibold text-right">Entrée</th>
-                <th class="px-3 py-2.5 font-semibold text-right">Sortie</th>
-                <th class="px-5 py-2.5 font-semibold text-right">Solde</th>
+                <th class="hidden sm:table-cell px-5 py-2.5 font-semibold">Date</th>
+                <th class="pl-4 pr-2 sm:px-3 py-2.5 font-semibold">Libellé</th>
+                <th class="px-2 sm:px-3 py-2.5 font-semibold text-right">Entrée</th>
+                <th class="px-2 sm:px-3 py-2.5 font-semibold text-right">Sortie</th>
+                <th class="pl-2 pr-4 sm:px-5 py-2.5 font-semibold text-right">Solde</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
-              <tr><td class="px-5 py-3 text-ink-soft">05/01</td><td class="px-3 py-3">Frais scolaires</td><td class="px-3 py-3 text-right text-emerald-700 font-medium">250 000</td><td class="px-3 py-3 text-right text-slate-300">—</td><td class="px-5 py-3 text-right font-semibold">250 000</td></tr>
-              <tr><td class="px-5 py-3 text-ink-soft">08/01</td><td class="px-3 py-3">Achat de craies</td><td class="px-3 py-3 text-right text-slate-300">—</td><td class="px-3 py-3 text-right text-red-600 font-medium">35 000</td><td class="px-5 py-3 text-right font-semibold">215 000</td></tr>
-              <tr><td class="px-5 py-3 text-ink-soft">12/01</td><td class="px-3 py-3">Frais scolaires</td><td class="px-3 py-3 text-right text-emerald-700 font-medium">180 000</td><td class="px-3 py-3 text-right text-slate-300">—</td><td class="px-5 py-3 text-right font-semibold">395 000</td></tr>
-              <tr><td class="px-5 py-3 text-ink-soft">15/01</td><td class="px-3 py-3">Transport de ciment</td><td class="px-3 py-3 text-right text-slate-300">—</td><td class="px-3 py-3 text-right text-red-600 font-medium">50 000</td><td class="px-5 py-3 text-right font-semibold">345 000</td></tr>
+              <tr><td class="hidden sm:table-cell px-5 py-3 text-ink-soft">05/01</td><td class="pl-4 pr-2 sm:px-3 py-3">Frais scolaires</td><td class="px-2 sm:px-3 py-3 text-right text-emerald-700 font-medium">250 000</td><td class="px-2 sm:px-3 py-3 text-right text-slate-300">—</td><td class="pl-2 pr-4 sm:px-5 py-3 text-right font-semibold">250 000</td></tr>
+              <tr><td class="hidden sm:table-cell px-5 py-3 text-ink-soft">08/01</td><td class="pl-4 pr-2 sm:px-3 py-3">Achat de craies</td><td class="px-2 sm:px-3 py-3 text-right text-slate-300">—</td><td class="px-2 sm:px-3 py-3 text-right text-red-600 font-medium">35 000</td><td class="pl-2 pr-4 sm:px-5 py-3 text-right font-semibold">215 000</td></tr>
+              <tr><td class="hidden sm:table-cell px-5 py-3 text-ink-soft">12/01</td><td class="pl-4 pr-2 sm:px-3 py-3">Frais scolaires</td><td class="px-2 sm:px-3 py-3 text-right text-emerald-700 font-medium">180 000</td><td class="px-2 sm:px-3 py-3 text-right text-slate-300">—</td><td class="pl-2 pr-4 sm:px-5 py-3 text-right font-semibold">395 000</td></tr>
+              <tr><td class="hidden sm:table-cell px-5 py-3 text-ink-soft">15/01</td><td class="pl-4 pr-2 sm:px-3 py-3">Transport de ciment</td><td class="px-2 sm:px-3 py-3 text-right text-slate-300">—</td><td class="px-2 sm:px-3 py-3 text-right text-red-600 font-medium">50 000</td><td class="pl-2 pr-4 sm:px-5 py-3 text-right font-semibold">345 000</td></tr>
             </tbody>
           </table>
         </div>
@@ -195,14 +196,14 @@
       </div>
 
       <!-- Reçu flottant -->
-      <div class="hidden sm:flex absolute -bottom-8 -left-8 items-center gap-3 bg-white border border-slate-200 rounded-xl pl-3 pr-5 py-3 shadow-xl shadow-slate-900/10">
+      <div class="hidden lg:flex absolute -bottom-8 -left-8 items-center gap-3 bg-white border border-slate-200 rounded-xl pl-3 pr-5 py-3 shadow-xl shadow-slate-900/10">
         <span class="w-10 h-10 rounded-lg bg-accent-soft text-accent flex items-center justify-center"><i class="ph-fill ph-receipt text-xl"></i></span>
         <div>
           <p class="text-sm font-bold leading-tight">Reçu n° 0142</p>
           <p class="text-xs text-ink-soft num">25 000 CDF · 1er trimestre</p>
         </div>
       </div>
-      <div class="hidden sm:flex absolute -top-6 -right-4 items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-xl shadow-slate-900/10">
+      <div class="hidden lg:flex absolute -top-6 -right-4 items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-xl shadow-slate-900/10">
         <i class="ph-fill ph-printer text-xl text-brand"></i>
         <p class="text-sm font-semibold">Impression A4 en un clic</p>
       </div>
@@ -212,8 +213,8 @@
 
 <!-- ======================= FONCTIONNALITÉS ======================= -->
 <section id="fonctionnalites" class="py-20 lg:py-28 bg-slate-50 border-y border-slate-200">
-  <div class="max-w-7xl mx-auto px-5 sm:px-8 grid lg:grid-cols-12 gap-12">
-    <div class="lg:col-span-4">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 grid grid-cols-1 lg:grid-cols-12 gap-12">
+    <div class="lg:col-span-4 min-w-0">
       <div class="lg:sticky lg:top-28">
         <h2 class="text-3xl sm:text-4xl font-extrabold leading-tight">Tout ce dont votre école a besoin pour ses comptes</h2>
         <p class="mt-4 text-ink-soft leading-relaxed">Une suite d'outils pensée pour les administrateurs, les percepteurs et les enseignants, du premier paiement au rapport de fin de trimestre.</p>
@@ -223,8 +224,8 @@
       </div>
     </div>
 
-    <div class="lg:col-span-8">
-      <ul class="grid sm:grid-cols-2 gap-px bg-slate-200 border border-slate-200 rounded-2xl overflow-hidden">
+    <div class="lg:col-span-8 min-w-0">
+      <ul class="grid grid-cols-1 sm:grid-cols-2 gap-px bg-slate-200 border border-slate-200 rounded-2xl overflow-hidden">
         <li class="bg-white p-7">
           <span class="w-11 h-11 rounded-lg bg-brand-soft text-brand flex items-center justify-center text-2xl"><i class="ph ph-hand-coins"></i></span>
           <h3 class="mt-5 font-bold text-lg">Perception des frais</h3>
@@ -262,8 +263,8 @@
 
 <!-- ======================= LIVRE DE CAISSE ======================= -->
 <section id="livre-caisse" class="py-20 lg:py-28 bg-brand text-white overflow-hidden">
-  <div class="max-w-7xl mx-auto px-5 sm:px-8 grid lg:grid-cols-12 gap-14 items-center">
-    <div class="lg:col-span-5">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 grid grid-cols-1 lg:grid-cols-12 gap-14 items-center">
+    <div class="lg:col-span-5 min-w-0">
       <h2 class="text-3xl sm:text-4xl font-extrabold leading-tight">Un livre de caisse clair, présentable et imprimable</h2>
       <p class="mt-4 text-blue-100 leading-relaxed">Le registre que vous remettez au chef d'établissement, sans rature et sans erreur de report.</p>
 
@@ -291,31 +292,31 @@
       </a>
     </div>
 
-    <div class="lg:col-span-7">
-      <div class="paper bg-white rounded-md text-ink p-5 sm:p-8 max-w-2xl mx-auto lg:ml-auto">
+    <div class="lg:col-span-7 min-w-0">
+      <div class="paper bg-white rounded-md text-ink p-3 sm:p-8 max-w-2xl mx-auto lg:ml-auto">
         <div class="text-center border-b-2 border-ink pb-3 mb-5">
           <p class="font-extrabold text-lg tracking-tight">Livre de caisse</p>
           <p class="text-xs text-ink-soft mt-0.5">Année scolaire 2026-2027</p>
         </div>
 
         <div class="overflow-x-auto">
-          <table class="ledger w-full text-xs border-collapse num min-w-[440px]">
+          <table class="ledger w-full text-[11px] sm:text-xs border-collapse num">
             <thead>
               <tr class="bg-ink text-white">
-                <th class="px-2 py-2 text-left font-semibold">Date</th>
-                <th class="px-2 py-2 font-semibold">Code</th>
-                <th class="px-2 py-2 text-left font-semibold">Libellé</th>
-                <th class="px-2 py-2 text-right font-semibold">Entrée</th>
-                <th class="px-2 py-2 text-right font-semibold">Sortie</th>
-                <th class="px-2 py-2 text-right font-semibold">Solde</th>
+                <th class="px-1.5 sm:px-2 py-2 text-left font-semibold">Date</th>
+                <th class="hidden sm:table-cell px-2 py-2 font-semibold">Code</th>
+                <th class="px-1.5 sm:px-2 py-2 text-left font-semibold">Libellé</th>
+                <th class="px-1.5 sm:px-2 py-2 text-right font-semibold">Entrée</th>
+                <th class="px-1.5 sm:px-2 py-2 text-right font-semibold">Sortie</th>
+                <th class="px-1.5 sm:px-2 py-2 text-right font-semibold">Solde</th>
               </tr>
             </thead>
             <tbody>
-              <tr class="bg-slate-100 font-semibold"><td class="px-2 py-1.5" colspan="5">Solde initial reporté</td><td class="px-2 py-1.5 text-right">120 000</td></tr>
-              <tr><td class="px-2 py-1.5">05/01</td><td class="px-2 py-1.5 text-center">R</td><td class="px-2 py-1.5">Frais scolaires du jour</td><td class="px-2 py-1.5 text-right text-emerald-700">250 000</td><td class="px-2 py-1.5 text-right text-slate-400">—</td><td class="px-2 py-1.5 text-right font-semibold">370 000</td></tr>
-              <tr class="bg-slate-50"><td class="px-2 py-1.5">08/01</td><td class="px-2 py-1.5 text-center">F</td><td class="px-2 py-1.5">Achat de fournitures</td><td class="px-2 py-1.5 text-right text-slate-400">—</td><td class="px-2 py-1.5 text-right text-red-700">35 000</td><td class="px-2 py-1.5 text-right font-semibold">335 000</td></tr>
-              <tr><td class="px-2 py-1.5">12/01</td><td class="px-2 py-1.5 text-center">B</td><td class="px-2 py-1.5">Transport de matériaux</td><td class="px-2 py-1.5 text-right text-slate-400">—</td><td class="px-2 py-1.5 text-right text-red-700">50 000</td><td class="px-2 py-1.5 text-right font-semibold">285 000</td></tr>
-              <tr class="bg-amber-50 font-bold"><td class="px-2 py-2 !border-2 !border-ink" colspan="3">Totaux</td><td class="px-2 py-2 text-right text-emerald-700 !border-2 !border-ink">250 000</td><td class="px-2 py-2 text-right text-red-700 !border-2 !border-ink">85 000</td><td class="px-2 py-2 text-right !border-2 !border-ink">285 000</td></tr>
+              <tr class="bg-slate-100 font-semibold"><td class="px-1.5 sm:px-2 py-1.5 sm:hidden" colspan="4">Solde initial reporté</td><td class="px-1.5 sm:px-2 py-1.5 hidden sm:table-cell" colspan="5">Solde initial reporté</td><td class="px-1.5 sm:px-2 py-1.5 text-right">120 000</td></tr>
+              <tr><td class="px-1.5 sm:px-2 py-1.5">05/01</td><td class="hidden sm:table-cell px-2 py-1.5 text-center">R</td><td class="px-1.5 sm:px-2 py-1.5">Frais scolaires du jour</td><td class="px-1.5 sm:px-2 py-1.5 text-right text-emerald-700">250 000</td><td class="px-1.5 sm:px-2 py-1.5 text-right text-slate-400">—</td><td class="px-1.5 sm:px-2 py-1.5 text-right font-semibold">370 000</td></tr>
+              <tr class="bg-slate-50"><td class="px-1.5 sm:px-2 py-1.5">08/01</td><td class="hidden sm:table-cell px-2 py-1.5 text-center">F</td><td class="px-1.5 sm:px-2 py-1.5">Achat de fournitures</td><td class="px-1.5 sm:px-2 py-1.5 text-right text-slate-400">—</td><td class="px-1.5 sm:px-2 py-1.5 text-right text-red-700">35 000</td><td class="px-1.5 sm:px-2 py-1.5 text-right font-semibold">335 000</td></tr>
+              <tr><td class="px-1.5 sm:px-2 py-1.5">12/01</td><td class="hidden sm:table-cell px-2 py-1.5 text-center">B</td><td class="px-1.5 sm:px-2 py-1.5">Transport de matériaux</td><td class="px-1.5 sm:px-2 py-1.5 text-right text-slate-400">—</td><td class="px-1.5 sm:px-2 py-1.5 text-right text-red-700">50 000</td><td class="px-1.5 sm:px-2 py-1.5 text-right font-semibold">285 000</td></tr>
+              <tr class="bg-amber-50 font-bold"><td class="px-1.5 sm:px-2 py-2 !border-2 !border-ink sm:hidden" colspan="2">Totaux</td><td class="px-1.5 sm:px-2 py-2 !border-2 !border-ink hidden sm:table-cell" colspan="3">Totaux</td><td class="px-1.5 sm:px-2 py-2 text-right text-emerald-700 !border-2 !border-ink">250 000</td><td class="px-1.5 sm:px-2 py-2 text-right text-red-700 !border-2 !border-ink">85 000</td><td class="px-1.5 sm:px-2 py-2 text-right !border-2 !border-ink">285 000</td></tr>
             </tbody>
           </table>
         </div>
@@ -337,7 +338,7 @@
       <p class="mt-4 text-ink-soft leading-relaxed">Chaque personne voit ce dont elle a besoin pour son travail, et rien de plus.</p>
     </div>
 
-    <div class="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 border-t border-slate-200">
+    <div class="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 border-t border-slate-200">
       <div class="py-7 lg:pr-8 border-b lg:border-b-0 border-slate-200">
         <i class="ph ph-shield-check text-3xl text-brand"></i>
         <h3 class="mt-4 font-bold">Super administrateur</h3>
@@ -364,8 +365,8 @@
 
 <!-- ======================= CONNEXION ======================= -->
 <section id="connexion" class="py-20 lg:py-28 bg-slate-50 border-t border-slate-200">
-  <div class="max-w-7xl mx-auto px-5 sm:px-8 grid lg:grid-cols-12 gap-12 items-center">
-    <div class="lg:col-span-6">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+    <div class="lg:col-span-6 min-w-0">
       <h2 class="text-3xl sm:text-4xl font-extrabold leading-tight">Accédez à votre espace de gestion</h2>
       <p class="mt-4 text-ink-soft leading-relaxed max-w-md">Connectez-vous avec l'adresse email et le mot de passe fournis par l'administrateur de votre établissement.</p>
       <ul class="mt-8 space-y-4 text-[15px]">
@@ -375,7 +376,7 @@
       </ul>
     </div>
 
-    <div class="lg:col-span-6 w-full max-w-md lg:max-w-none lg:justify-self-end">
+    <div class="lg:col-span-6 min-w-0 w-full max-w-md lg:max-w-none lg:justify-self-end">
       <div class="bg-white rounded-2xl border border-slate-200 shadow-[0_24px_60px_-30px_rgba(11,74,174,.3)] p-7 sm:p-9 lg:max-w-md lg:ml-auto">
         <h3 class="text-xl font-bold">Connexion</h3>
         <p class="text-sm text-ink-soft mt-1">Entrez vos identifiants pour continuer.</p>
@@ -426,9 +427,9 @@
 <!-- ======================= À PROPOS / FOOTER ======================= -->
 <footer id="apropos" class="bg-white border-t border-slate-200 pt-16 pb-8">
   <div class="max-w-7xl mx-auto px-5 sm:px-8">
-    <div class="grid md:grid-cols-12 gap-10 pb-12">
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-10 pb-12">
       <div class="md:col-span-5">
-        <img src="/public/static/img/logo-scolapay.png" alt="ScolaPay" class="h-8 w-auto" width="150" height="60">
+        <img src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt="ScolaPay" class="js-logo h-8 w-auto" width="148" height="32">
         <p class="mt-5 text-[15px] text-ink-soft leading-relaxed max-w-sm">Plateforme de gestion financière pour les établissements scolaires : transparence, rigueur et temps gagné au quotidien.</p>
       </div>
       <div class="md:col-span-3 md:col-start-7">
@@ -454,6 +455,11 @@
   </div>
 </footer>
 
+<script>
+// Logo intégré (aucun fichier à servir)
+const LOGO_SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAggAAABwCAMAAABMzHjUAAAAflBMVEX5YwUHSLIAC/P5YwUAPLYHSLMHSbP5YwUAeff3YwQAC38FSLEAfn//PwD//wAITsG/PwCqVQcA//9/fwx/Hx//qgAAAAAISbP6ZAX/fgAAVar+VgAGSLL/AAAHSLP7ZQMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAzsgFpAAAAIHRSTlOgXwFdBbHP0gIrAhMCBAH/BAMBAgMDAP79AgMFLwGLEBEipegAABPfSURBVHja7V0Jd5u8EhViX52031MCYvn///JJApttRgs4rpNY5/S0iQ120dXVLHdGhL3Ga4hBfs5/JQv2o3nN8O8Dwmu8gCAGZbnX74Ynfv8avwkIlObR5WM7Lh8e+5LdoeJ1WZf8rRajlKMe/zX+VdfXH28v8Lp7AeERo2DtBzT6L6EEfuwqXn9jINAkC5qmmH5oGmGAFU9It8kDgSDW9uC7jlSBp+bddwQCbYL5MWZJdvshCRr6a4HQVTX5PDBi4g+SF7pvBgSx+uVfeet5fRhG4wiF/eW1iXyheSosPBAIJT+EAzWIz49uLP8ICFSioBEQgJ5uFHqter34hUD4H/M/T4xYQqH+LkCQMAi8/kM3Qi9/Iig8Dgh8iD8/z0GhfkJSAIEgYJB70YdpRH0r3kt/FxBqln6eHXH6fEggIB0E3ofdUFD4VUDg53aGafjs2eIKBHikzIIN5ieds+QJSKH4XkD4JM+GBLLfFoL+w2l4Cjy/hxHSz7sgoXouJGyBELA2+nAcYf7vt4fiuwHhk9T1EwMhQJ6nwWps/3lu59sxgtodnhYIx3CgtofmlwDh/W5AEBYjf1IgJEdx8IuA0NXDvYDwmT4RJyyBQIM8OoaD/p8bCY/LPtaM3AsI8fA8BiNZbQz95RAOovyfh5UeB4Su5PEP3BzI0nH0Dm4M7b/3Gh6YdKrYcDdOGLrq+YBAj24MnuCSX+M+KiSw1CfWI9ZHGJ8OCIcJIXyCeNJDhSnCYHR6d+qjWIg5654NCLQ5SAg5/W1AEBZj+SZGuR9vpfr929vtDdIKwBUMT0MJxJoQoig6tDHQosmyhFJGKW0CNzkLzZQ2rkkSeaUup+EOBNrIkcj7Z9aLWz8w1Ii59tGoEoc5h/M3zgWiePVwIOAphsjz2jxp8rz1+mj3pHU4yBrAjLQEQ9IkwKXJXYCQBHRz39u/kiQpiiIrimQc4u9pcozaU3TSugFFAme7i+q31QdV5fVHzuvNEF+p3v1SJ4zs9u8e376wEbCdIWxXt2q9cOU5Juh6omqpzVq3MAx7T8pZlg8eM/7UGwJxrdf38sJegVGBKzkJBLrU4N20d6ZvJJ8WH4ZhenjAYBrp0YBFH7YeZKfQxFNfmaO+nyqdY639WvdkhAYNKvaymKyhaiTjBLb9wnNMUBiMqIn2ehYFBs2Dp5IyAuBaqZErrjN50GuQFxftmtnEV6Iqh0qZF+6GJ+4uH7hPYv0gA4oENCC53hs6+YNwSdY6x1RJXv9jgKuSsnT/S7+uYHx01QC5O4PY1a5AoJiJEAU02LA9lQImk4GgxG4hGor0pFBeh6A+0umidjCyZgRMfRWJb9QEzIOqZPI/lFVWwQM8aFwilED4sMxoMe4D7xPzjUijYlA4R9j/XKKiEozk9iA9jBACkLdzwQqXMAlQGBjEburBH7v0I/SC7cWWjJAVuPpKbIE5/BRaVnC7wHLMMZORdykSZl4alQPmaQpWqEEzA1ZQDuCWgcnslkBAbUUvC5BV24ZRyzIEBxZiN2l77C5XM2Uhl/Q2akk7IDR69ZXAFwKE/6rUNmg8YJYkR4KLVxIRdIAHHKTOEQQC9+290hoxWSWPkVueAaHxiAUZSuAIt1NLsVvfbEmhsdbJRWthlNXWELA8NMTGECC82wrUCAqEuou1uwkXu71+24EZYbDWOnQdnCVRbzYCQSrRMtgFo4hrZi92izbapsY0U6s5DhYX2wDBInbanwcCZiSkyOYyKpq72vgJMQwE+LaQsYL5sL40UWcg9Bp5qvDprQsYnCYzWuarqGOUe3mxBRCyE0m1vyw9m08cdECQS/Jo2iq1ZSbEzomVZo5YrJZo9P3t6h0bR9HjPJliR3GUzS70MGYgBIdxII3FyrKsBXcbao5vDbVpW9AAoQYrMQGrFRPZ+cKjWTKCp7fT21G6YgJD4yxyuiKBsiB0nqKb+2oEQuaMsuVXzCzrWnBC6BCvQXD73/pEYntAwtfj9FoQwueojiGGFbWLA7EiKO6Jg48oUeCiNA8PzNEVCSYgHBdbjEAQ7ph50caaFFKJ2QDCa+hOlNUOjKexKT6hItXdgFg15Tr7GFgw+hUMARILKg6kMC8qUkGLIDw0Sd7oghrcx1M4UECQU5waWiCUmlTiUMM7Q1wPvDohdBkwGzDdJMsxUzEdZfVktrYsqXPaJUCnMmHHVnWi8VrsthY9IxQ0/zgLBFab84Bco3T0cX/zjOCJi1sPmpU+U9IQ66xKcoTUI4WFvSNx0B4LWZIcX7GjYFIPhOYwzCYg0Mneq+t3jg6NEhU3MXx2roaOsw52TOOhXmPU11q35OBqVp5EUliFeU17Q3jEtNhIqLVACE5tDDMQZLMUYBgTgHWJm5rpyToJLhNVqdlwRXId8TXHvUhDU8entSuKD5JD6y5qiyaITs1TowUCTU7dXrmPWuZf/L7bMUb51mkWfXzKQBiBwN7BSV7Ftqo61YfEF+LVzJk/ZbYgOSt6DAOWnFuxURBogXCWECYbQTXRgkY3Z3hAcuAaf8M/Wzgl00uIAbKMaSBOS3zTsCxVzI27RdUHc3KySY6sO5k90n6wFLMgLXwWcSUcCAnNcl1M2WulQsXGWMRyQrPX2EGehVbGrLEUY+KnYvjECARWvcWGvQEJZ805MsLOFTbMYV7t1qJmc69zk5cnVBPeDkd3Vd5ek4yKgkzDCPh/K7rd/SawwLcGXSJ6YuGucw0MEVzMKOUok+Pnm4AAr/c4vUUXMVNxFlGT01b/HNJBV+38vNt+SyiZZARNhpEVgRSZSl2Sp/0OGBAC1ACRSZRGKWOl8EoTz5KMoG+QMXICd3YEU1zBJhPX71IT9850gUcFhA4OFs2UoFGkQEDAdUpmJGQMI+AwV/JFOZ1UqhiWV0qVErpixYXFzRqV8jU0i9GjfkePo1ugbJawShlWrwNCxXQMPyZunMsiCWYhpMvWnJ0uJTVKULjeXMTSDIugE7lDJEAhIbN63sXieYt5DsY9JcSsyGDz5VDrP2/+YEDIkQn2Nn3ACjymJbaGrtZnneR8CKvNrSoyHjrMuR+2gniiBUINZzKGm9YBIYR3hgBBdUy5uCOhQXeGnq2V48mVAPpJn0QpEkPY92HB2zd4LEGBAFfyhbu7F6jNKhihwwRGK+Pd0QPwWRfbyZxwHE6iNHiqpxt1cOzxc9ncDeihlLun6aSmPUeihjtVC2XhReUIMq1MAOqwT3FlZYNuDfAL+V5ihd5dbg162o9l/Ll0jBEK5gYnKAZSFhzPWXX465N3iLiXq88Bu6q1zgEFQcCtQW6wULLlvdgWshvy4O6uoLS1QZJaIUO3Bnh2wboc7O7KWOyMxqKjrSibKPnWuewa2XauMlX49Un+hPmOXAcEJRxsXTurIRZfiJYvNLOZFmmVBnY2DO41wCZCC2kuMbNVxRF0boOyyrrKqSdrPNQwcmKwnAWjmxsQwNfVFythA2L9OWDn1SKRjnXoRAnwM/RAjStt5nJDiuwpOSiIRH2TFgdCCEYeXNQUt4ASwQJKFXPtwBgP7L0yh4YXFU2pFggdH7CXkTTDmngIVneIlCnhHha48HKj1DGDH36IFK9SFjkCASQcuNcPBsop1yBme+C3wPL8rymyzEsHQoi5LF7ise3OIJvC6ysYUHOxYhxGImdmIFwLFxtbMHjwwjMXGifYHo5VTGDOIOo16MWOm9tH2qRThRSWMldCIAIHsvWKg+wRsVZvQIApI+Z8YDalD2sgFCtXL5tOy8u93giGCARCaO5OgOzLWC1d4AyE1uH2FDZc5zqerqoqWQBfqbGohu8GF9+RKMET4m7CVUqYfmV+N0wJwlxEqGSdPifr58DYmstpYguGBAZCdncgeF8IhMwEhKVnvywsL5kDDoRN0WmMCs7YEUZgb+BXIB38KVu9+zrp1HoB8ISysaHBH60rAYbqIxv5+1MxgnZrWE3LZr3ae44+n4wAjmWPu0NAQDxIrAJmI2kka4HRRWYTKWzoM22AAUZJUhwEAm4jhPcAAmYsYjbC/ssIIzFNU2UsGlPFq5U43IQsKBBAThiM5a6wMeDbFcAseyiNsViZG0DsOm1iBnHXwflcHBqGACHCvIbM1WtwcEoK1H0sLON8xk1hWJzuxW0rEmzcRzSSTIgV2shyf7xck0EZspAFLWCWQutdrFfeFMDUPnw4jkAZmphw8hrE+wvHgNJqUo703IxJWq88DyQnCMcRys43AcEh+0mERYEAYWmFSdUQzMw5mp1s4RfyIoOet5dfaQebWrfIYkRxINgHLrH84x4Ibuc6xTGZdCZlZSFtTqEG/lijjTUQbC3WPevArXOUGBFay0mBAgHXA+wIuL9IW4TSKYgDzlQEfX5W5KgiHlUowamMZN+jLcPoxhIIJAXHwPk1JLS2ApE4AkgJNVYxt2rUaJvtiPedIsntCUc7iTJQuZCjRkIeRFZJRHpd1NeOKQlq/uXW4SQZIHLLNSihwvbuiDDCdmvQHKbKayCBgBLLPqTUoVKmYQ2E1JIQMCAApBh6qjRkcQAwbXBBQETxOSqaJQxu5C6FKbqiAw9olITyUVa4ZR/H+qp1yAS/+8agwIBQDzVY99ChMniC5SHqTdACtU7X4aea2exZMRAiJZpMfOS1dMo8NM3YT83Ds06opNBjK2lgv5IkJjghyxR2AklaIB9Do1lsNfppumwA431YAwFpYeXYax11PmLOyhkKXakpjFgDwc6dgfwSoi93i3qvXSh9Q51ICRWNR14z3yLaqeEDVIAmm7WMjCTbt2pmytNoFnP89gmC0McBIcWDj6xT/TX5GzeLVxeUYGHGCkLoQCBcIwjoRIa9GPrkU6vruaLwJMsHtkCa4lc4zyx7fWqiWfkfDRDw7xV5CYLQY8aiKxB03gdJZ7xoemxtgWCjkgIDFUTbP8lBj5Cg2kNjgUuiuTAcGSlvdfKIXlbROquYJ4R6EEIfwwh6K38scPENUctNe/fOov3bALXjJOxswdlNkYYa3QYM5cxQkY+1A19omKmuwCWPTv/vvgwIp08K2/b5NweV4IAVOVrDvFekHb5Re+4bXGRwCN8akuw00L9qa5DuQHx3IJiwNYCNHoh2b7d+Uqqd7sEt5tKzU1Mla2A1QKCsyR8FhDfG7uQ3OBXBbmrwiamohoFAaM7vDFP4kB584sKjP8Perak/wr2qob8ACI6CVxsgmMzFFD6BlsggwklKCK9tu489cbGiA3p8cxizBjpGYGethK8DAqvPUsJez6T3ILHWsGQM3F7OUPOcyTt0J7mi88OLdmIjPRBOd0yxBELpDAQ0mXQcCIMWW1gjSDLGffuPk9R8ExqEx1b00a/QT5VUmbaH0kk76CuB0PFzm8MeCFiBm5YQxsgiPbFkVk10Zd2BGwtfvKt9cWiuwmJKheibadEmCZ8UCGddSEDqqvMgU8yzITeJwKFt9LJtq+2KhDlNXRxAQs+uuc1G32eRsnPmqBUQ/ENAcC6ZNAJBA60Y9XDnFrz5kRXZN9ujfAqWhxeHfWHRAMGZlry5wtZ0XkPm9LUeCoRzBiMkfv+LUgLeGnbRZ9GdFCLo6I2CZb3DTK6VSy7fIGwXoheLXswWLX4vWJv+LwUCK612B+LbAgHlmLhCW8MuxasCCm6tFgNYC5xZTujuABgnWvKy5aebu7NnFmErDz3KZyskvSsQBF+buzEj7ZYgIHQdYoBqekWTjZ7UuiJewgA74c2uxwJQQ2GPxT5ntLAQIPfzd5T5iFD/X2KZJRBAYUraHT57j7PONzbVsAYCFrCMS/wLko1Yy7IMGjhey7Gwvm8hHNnRkjrordmIlyyO8tFvf32AH+5lszUcSDUs9IudtkaGoL23QSDUtUUvVh0QppM59fVt0djzTntygzr8C78JMJNLLLba8jr18dtPl4XMF9w7vcKFsgbB2dhiDTnuj1Kzg0b4CRyoVYye8Sa1CRw77g8ie7gVa5xWnTUQ5BwqHpTH/wIHcPZeGzCLk1yVUDEAATX2+sfrpLHTP6dr5ScDF1PB+9DZnftjH9le23DDFqXgAaDbj6vE8t2dxHl2yKJqnu7acxKfj0UxNXwAKAAERPKsIwS4LJ5e55nmuZRtjKNt82xiDauznbPx1FjZNnUSFEQzkLSlcMnyzF55mLA8TlidCTy+euoAePXR+fS11H1bI8HZOYGnR60malCnAcuDZWU1hDpsvnb9KsSaPLRAmMAArLsiW6iajeMGqCBXI2DWQFqcJkaD+WwI3VlCSUKzzSgamKyK3afNJXjyhPBM/rmOJAGXb/V3qVQu74ADddubPVff0FHNonjgkHBrU1FLCIwYpjIrRgmzFHlmRxZN1gQLQI09VC1hVDRBcwVN1ogfCsruNGgibidLXApx3+Rut73LqHjJ1QRXnJfc3RFBAoubDimOQLjbgx8Hew0HZauT0olJzXNVS4s1tZesPhwIr/GwAZ8RbLAQXkD4GeRRcaI0z7JVQ/x5hBBeQPgJwyJrFZuiHC8g/ARGMGuhjXmQFxB+BSGYw98vIPwA89Ase0xfQPgNhJCeJ4QXEL7/MJ8kG3Pz2ZQvIPwA3/H8xvACwm8wFX0bocQLCN8eCKa6CDuV/QsI395l8E2tXq0SVy8gfPudwVD8PHQVewHh55uK3aDHQWqpmHkB4ZsDoR70dqJtOvsFhO/vNMQa7XNtK2t4AeHbcwLjcL8tpX22vs0LCD/Ab5CC17X6OSbqQAAHIeULCD+AE8YJH1JfDCL+pKoHgpv2+QWEHzH+8k3Q6M1V9foCwo8ZVc3LUirrOa/cr34B4TXU+D9FJHVbzL/hmwAAAABJRU5ErkJggg=="
+document.querySelectorAll(".js-logo").forEach(i => { i.src = LOGO_SRC })
+</script>
 <script src="/static/js/api.js?v=8"></script>
 <script>
 // ---- Navbar : ombre au défilement ----
