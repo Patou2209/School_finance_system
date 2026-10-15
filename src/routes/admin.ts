@@ -399,11 +399,14 @@ admin.get('/classes/:id/detail', async (c) => {
 // PERSONNEL (enseignants et percepteurs) - comptes utilisateurs de l'école
 // ---------------------------------------------------------------------------
 admin.get('/staff', async (c) => {
-  const role = c.req.query('role') // 'enseignant' | 'percepteur' | undefined (tous)
+  const role = c.req.query('role') // 'enseignant' | 'percepteur' | 'percepteur_et_admin' | undefined (tous)
   const sid = schoolId(c)
   let query = `SELECT id, name, email, phone, role, active, created_at FROM users WHERE school_id = ? AND role IN ('enseignant','percepteur')`
   const binds: any[] = [sid]
-  if (role) {
+  if (role === 'percepteur_et_admin') {
+    // Pour le rapport par percepteur : l'admin perçoit aussi, il doit figurer dans la liste
+    query = `SELECT id, name, email, phone, role, active, created_at FROM users WHERE school_id = ? AND role IN ('percepteur','admin')`
+  } else if (role) {
     query += ` AND role = ?`
     binds.push(role)
   }

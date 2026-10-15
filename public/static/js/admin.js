@@ -1225,9 +1225,10 @@ async function deletePayment(paymentId, onDone) {
 let rapportPercepteurCache = null
 
 async function populateRapportPercepteurSelector() {
-  const { staff } = await Api.get('/api/admin/staff?role=percepteur')
+  // L'admin perçoit aussi : il doit figurer dans la liste des percepteurs
+  const { staff } = await Api.get('/api/admin/staff?role=percepteur_et_admin')
   document.getElementById('rp-percepteur').innerHTML =
-    staff.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('') ||
+    staff.map(s => `<option value="${s.id}">${escapeHtml(s.name)}${s.role === 'admin' ? ' (admin)' : ''}</option>`).join('') ||
     '<option value="">Aucun percepteur</option>'
   if (!document.getElementById('rp-date').value) document.getElementById('rp-date').value = todayStr()
 }
