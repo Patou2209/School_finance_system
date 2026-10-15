@@ -3,361 +3,503 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>SchoolFinance — ScolaPay</title>
-<meta name="description" content="Plateforme complète de gestion financière scolaire : perception, livre de caisse, prévision budgétaire et rapports.">
-<script src="https://cdn.tailwindcss.com"></script>
+<title>ScolaPay — Gestion financière scolaire</title>
+<meta name="description" content="ScolaPay : perception des frais scolaires, livre de caisse, prévision budgétaire et rapports financiers pour les établissements scolaires.">
+<meta name="theme-color" content="#0B4AAE">
+
+<!-- Police -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- Icônes (Phosphor, police d'icônes via CDN) + Font Awesome conservé pour les toasts de api.js / style.css -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css">
 <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
-<link href="/static/css/style.css?v=8" rel="stylesheet">
-<style>
-  html { scroll-behavior: smooth; }
-  .hero-gradient {
-    background:
-      radial-gradient(ellipse 80% 60% at 70% -10%, rgba(59,130,246,0.35), transparent),
-      radial-gradient(ellipse 60% 50% at 20% 110%, rgba(180,83,9,0.25), transparent),
-      linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #172554 100%);
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Figtree', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'] },
+        colors: {
+          brand:  { DEFAULT: '#0B4AAE', dark: '#083A8A', deep: '#062C6B', soft: '#EAF1FC' },
+          accent: { DEFAULT: '#F96A0A', dark: '#D95A04', soft: '#FFF0E5' },
+          ink:    { DEFAULT: '#0F1B33', soft: '#44506A' }
+        }
+      }
+    }
   }
-  .glass { background: rgba(255,255,255,0.06); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); }
-  .feature-card { transition: transform .25s ease, box-shadow .25s ease; }
-  .feature-card:hover { transform: translateY(-6px); box-shadow: 0 20px 40px -12px rgba(30,58,138,0.25); }
-  @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
-  .animate-float { animation: float 5s ease-in-out infinite; }
-  @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
-  .fade-up { animation: fadeUp .8s ease both; }
-  .fade-up-1 { animation-delay: .1s; } .fade-up-2 { animation-delay: .25s; } .fade-up-3 { animation-delay: .4s; }
-  .counter-glow { text-shadow: 0 0 30px rgba(96,165,250,0.5); }
+</script>
+<link href="style.css" rel="stylesheet">
+
+<style>
+  html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
+  body { font-family: 'Figtree', system-ui, sans-serif; color: #0F1B33; background: #fff; -webkit-font-smoothing: antialiased; }
+  h1, h2, h3 { letter-spacing: -0.02em; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* Quadrillage discret derrière le hero, estompé vers les bords */
+  .hero-grid {
+    background-image:
+      linear-gradient(to right, rgba(15,27,51,.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(15,27,51,.05) 1px, transparent 1px);
+    background-size: 48px 48px;
+    -webkit-mask-image: radial-gradient(ellipse 70% 75% at 65% 35%, #000 20%, transparent 75%);
+            mask-image: radial-gradient(ellipse 70% 75% at 65% 35%, #000 20%, transparent 75%);
+  }
+
+  /* Papier du livre de caisse imprimable */
+  .paper { box-shadow: 0 1px 0 rgba(255,255,255,.4) inset, 0 30px 60px -20px rgba(3,20,60,.55); }
+  .ledger th, .ledger td { border: 1px solid #cbd5e1; }
+
+  /* Focus clavier visible */
+  a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid rgba(249,106,10,.55); outline-offset: 2px; }
+
+  /* Une seule animation d'entrée : le hero */
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  .rise { animation: rise .7s cubic-bezier(.2,.7,.2,1) both; }
+  .rise-2 { animation-delay: .12s; } .rise-3 { animation-delay: .24s; }
+  @media (prefers-reduced-motion: reduce) {
+    .rise { animation: none; }
+    html { scroll-behavior: auto; }
+  }
 </style>
 </head>
-<body class="bg-slate-50">
+
+<body>
 <div id="toast-container"></div>
 
 <!-- ======================= NAVBAR ======================= -->
-<header id="main-navbar" class="fixed top-0 inset-x-0 z-50 hero-gradient shadow-lg">
-  <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<header id="main-navbar" class="fixed top-0 inset-x-0 z-50 bg-white/85 backdrop-blur border-b border-slate-200/80 transition-shadow">
+  <nav class="max-w-7xl mx-auto px-5 sm:px-8">
     <div class="flex items-center justify-between h-16">
-      <!-- Logo -->
-      <a href="#accueil" id="nav-logo" class="flex items-center gap-3 text-white">  
-        <span class="font-bold text-lg tracking-tight">Scola<span class="text-amber-700">Pay</span></span>
+      <a href="#accueil" id="nav-logo" class="flex items-center" aria-label="ScolaPay, accueil">
+        <img src="/public/static/img/logo-scolapay.png" alt="ScolaPay" class="h-7 w-auto" width="200" height="75">
       </a>
 
-      <!-- Liens desktop -->
       <div class="hidden md:flex items-center gap-1" id="nav-links-desktop">
-        <a href="#accueil" class="px-4 py-2 rounded-lg text-sm font-medium text-blue-100 hover:text-white hover:bg-white/10 transition">Accueil</a>
-        <a href="#fonctionnalites" class="px-4 py-2 rounded-lg text-sm font-medium text-blue-100 hover:text-white hover:bg-white/10 transition">Fonctionnalités</a>
-        <a href="#livre-caisse" class="px-4 py-2 rounded-lg text-sm font-medium text-blue-100 hover:text-white hover:bg-white/10 transition">Livre de caisse</a>
-        <a href="#apropos" class="px-4 py-2 rounded-lg text-sm font-medium text-blue-100 hover:text-white hover:bg-white/10 transition">À propos</a>
-        <a href="#connexion" class="ml-3 px-5 py-2 rounded-lg text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-lg shadow-amber-900/30 transition">
-          <i class="fas fa-sign-in-alt mr-1.5"></i>Connexion
+        <a href="#accueil" class="px-3.5 py-2 rounded-lg text-sm font-medium text-ink-soft hover:text-brand hover:bg-brand-soft transition-colors">Accueil</a>
+        <a href="#fonctionnalites" class="px-3.5 py-2 rounded-lg text-sm font-medium text-ink-soft hover:text-brand hover:bg-brand-soft transition-colors">Fonctionnalités</a>
+        <a href="#livre-caisse" class="px-3.5 py-2 rounded-lg text-sm font-medium text-ink-soft hover:text-brand hover:bg-brand-soft transition-colors">Livre de caisse</a>
+        <a href="#apropos" class="px-3.5 py-2 rounded-lg text-sm font-medium text-ink-soft hover:text-brand hover:bg-brand-soft transition-colors">À propos</a>
+        <a href="#connexion" class="ml-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold bg-brand hover:bg-brand-dark text-white transition-colors">
+          <i class="ph-bold ph-sign-in text-base"></i>Connexion
         </a>
       </div>
 
-      <!-- Bouton hamburger mobile -->
-      <button id="nav-toggle" class="md:hidden w-10 h-10 flex items-center justify-center rounded-lg text-white hover:bg-white/10 transition" aria-label="Menu">
-        <i class="fas fa-bars text-xl" id="nav-toggle-icon"></i>
+      <button id="nav-toggle" class="md:hidden w-10 h-10 flex items-center justify-center rounded-lg text-ink hover:bg-slate-100 transition-colors" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="nav-mobile">
+        <i class="ph ph-list text-2xl" id="nav-toggle-icon"></i>
       </button>
     </div>
 
-    <!-- Menu mobile -->
-    <div id="nav-mobile" class="md:hidden hidden pb-4 space-y-1">
-      <a href="#accueil" class="nav-mobile-link block px-4 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10">Accueil</a>
-      <a href="#fonctionnalites" class="nav-mobile-link block px-4 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10">Fonctionnalités</a>
-      <a href="#livre-caisse" class="nav-mobile-link block px-4 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10">Livre de caisse</a>
-      <a href="#apropos" class="nav-mobile-link block px-4 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-white/10">À propos</a>
-      <a href="#connexion" class="nav-mobile-link block px-4 py-2.5 rounded-lg text-sm font-semibold bg-amber-500 text-slate-900 text-center">
-        <i class="fas fa-sign-in-alt mr-1.5"></i>Connexion
+    <div id="nav-mobile" class="md:hidden hidden pb-4 pt-1 border-t border-slate-100">
+      <a href="#accueil" class="nav-mobile-link block px-3 py-3 rounded-lg text-[15px] font-medium text-ink hover:bg-slate-50">Accueil</a>
+      <a href="#fonctionnalites" class="nav-mobile-link block px-3 py-3 rounded-lg text-[15px] font-medium text-ink hover:bg-slate-50">Fonctionnalités</a>
+      <a href="#livre-caisse" class="nav-mobile-link block px-3 py-3 rounded-lg text-[15px] font-medium text-ink hover:bg-slate-50">Livre de caisse</a>
+      <a href="#apropos" class="nav-mobile-link block px-3 py-3 rounded-lg text-[15px] font-medium text-ink hover:bg-slate-50">À propos</a>
+      <a href="#connexion" class="nav-mobile-link mt-2 flex items-center justify-center gap-2 px-3 py-3 rounded-lg text-[15px] font-semibold bg-brand text-white">
+        <i class="ph-bold ph-sign-in text-lg"></i>Connexion
       </a>
     </div>
   </nav>
 </header>
 
+<main>
 <!-- ======================= HERO ======================= -->
-<section id="accueil" class="hero-gradient pt-28 pb-20 lg:pt-36 lg:pb-28 text-white overflow-hidden">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-12 items-center">
-    <div>
-      <p class="fade-up inline-flex items-center gap-2 glass rounded-full px-4 py-1.5 text-xs font-semibold text-amber-300 mb-6">
-        <i class="fas fa-bolt"></i> Plateforme moderne · Rapide · Sécurisée
+<section id="accueil" class="relative pt-28 pb-16 lg:pt-36 lg:pb-24 overflow-hidden">
+  <div class="hero-grid absolute inset-0 pointer-events-none" aria-hidden="true"></div>
+
+  <div class="relative max-w-7xl mx-auto px-5 sm:px-8 grid lg:grid-cols-12 gap-14 items-center">
+    <div class="lg:col-span-6">
+      <p class="rise inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white pl-2 pr-3.5 py-1 text-[13px] font-medium text-ink-soft">
+        <span class="w-6 h-6 rounded-full bg-accent-soft text-accent flex items-center justify-center"><i class="ph-fill ph-lightning text-sm"></i></span>
+        Perception, caisse, budget et rapports au même endroit
       </p>
-      <h1 class="fade-up fade-up-1 text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-tight tracking-tight">
-        La gestion financière de votre école,
-        <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-amber-500">simplifiée.</span>
+
+      <h1 class="rise rise-2 mt-6 text-[2.6rem] leading-[1.05] sm:text-6xl font-extrabold text-ink">
+        La gestion financière de votre école, simplifiée.
       </h1>
-      <p class="fade-up fade-up-2 mt-6 text-lg text-blue-100/90 max-w-xl">
-        Perception des frais scolaires, livre de caisse numérique, prévisions budgétaires et rapports financiers dans une plateforme unique et accessible partout.
+
+      <p class="rise rise-2 mt-6 text-lg leading-relaxed text-ink-soft max-w-xl">
+        Encaissez les frais scolaires, tenez votre livre de caisse, suivez votre budget et sortez vos rapports. Depuis un ordinateur ou un téléphone, sans classeur ni calcul à la main.
       </p>
-      <div class="fade-up fade-up-3 mt-8 flex flex-col sm:flex-row gap-4">
-        <a href="#connexion" class="inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-8 py-3.5 rounded-xl shadow-xl shadow-amber-900/40 transition text-base">
-           Commencer maintenant
+
+      <div class="rise rise-3 mt-9 flex flex-col sm:flex-row gap-3">
+        <a href="#connexion" class="inline-flex items-center justify-center gap-2 bg-accent hover:bg-accent-dark text-white font-semibold px-7 py-3.5 rounded-xl transition-colors">
+          Commencer maintenant
         </a>
-        <a href="#fonctionnalites" class="inline-flex items-center justify-center gap-2 glass hover:bg-white/15 text-white font-semibold px-8 py-3.5 rounded-xl transition text-base">
-          <i class="fas fa-circle-info"></i> Découvrir
+        <a href="#fonctionnalites" class="inline-flex items-center justify-center gap-2 bg-white border border-slate-300 hover:border-brand hover:text-brand text-ink font-semibold px-7 py-3.5 rounded-xl transition-colors">
+          <i class="ph ph-info text-xl"></i>Découvrir
         </a>
       </div>
 
-      <!-- Statistiques -->
-      <div class="mt-12 grid grid-cols-3 gap-4 max-w-md">
-        <div class="text-center">
-          <p class="text-3xl font-extrabold counter-glow" data-counter="4">0</p>
-          <p class="text-xs text-blue-200 mt-1">Rôles utilisateurs</p>
+      <dl class="rise rise-3 mt-12 flex gap-8 sm:gap-12 pt-8 border-t border-slate-200 max-w-lg">
+        <div class="flex flex-col-reverse">
+          <dt class="text-sm text-ink-soft">Rôles utilisateurs</dt>
+          <dd class="text-3xl font-extrabold text-brand num" data-counter="4">4</dd>
         </div>
-        <div class="text-center">
-          <p class="text-3xl font-extrabold counter-glow" data-counter="7">0</p>
-          <p class="text-xs text-blue-200 mt-1">Modules de gestion</p>
+        <div class="flex flex-col-reverse">
+          <dt class="text-sm text-ink-soft">Modules de gestion</dt>
+          <dd class="text-3xl font-extrabold text-brand num" data-counter="7">7</dd>
         </div>
-        <div class="text-center">
-          <p class="text-3xl font-extrabold counter-glow"><span data-counter="100">0</span>%</p>
-          <p class="text-xs text-blue-200 mt-1">Traçabilité</p>
+        <div class="flex flex-col-reverse">
+          <dt class="text-sm text-ink-soft">Traçabilité</dt>
+          <dd class="text-3xl font-extrabold text-brand num"><span data-counter="100">100</span>%</dd>
         </div>
-      </div>
+      </dl>
     </div>
 
-    <!-- Illustration : aperçu livre de caisse -->
-    <div class="hidden lg:block relative">
-      <div class="animate-float glass rounded-2xl p-6 shadow-2xl">
-        <div class="flex items-center justify-between mb-4">
-          <p class="font-bold text-sm"><i class="fas fa-book mr-2 text-amber-400"></i>Livre de caisse</p>
-          <span class="text-xs bg-green-500/20 text-green-300 px-2.5 py-1 rounded-full font-semibold"><i class="fas fa-circle text-[6px] mr-1 align-middle"></i>À jour</span>
+    <!-- Aperçu de l'application -->
+    <div class="lg:col-span-6 relative rise rise-3">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-[0_30px_70px_-30px_rgba(11,74,174,.35)] overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+          <div class="flex items-center gap-3">
+            <span class="w-9 h-9 rounded-lg bg-brand-soft text-brand flex items-center justify-center"><i class="ph-fill ph-notebook text-xl"></i></span>
+            <div>
+              <p class="font-bold text-[15px] leading-tight">Livre de caisse</p>
+              <p class="text-xs text-ink-soft">Janvier 2027</p>
+            </div>
+          </div>
+          <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">
+            <i class="ph-fill ph-check-circle text-sm"></i>À jour
+          </span>
         </div>
-        <table class="w-full text-xs">
-          <thead>
-            <tr class="text-blue-200 border-b border-white/20">
-              <th class="text-left py-2 font-semibold">DATE</th>
-              <th class="text-left py-2 font-semibold">LIBELLÉ</th>
-              <th class="text-right py-2 font-semibold">ENTRÉE</th>
-              <th class="text-right py-2 font-semibold">SORTIE</th>
-              <th class="text-right py-2 font-semibold">SOLDE</th>
-            </tr>
-          </thead>
-          <tbody class="text-blue-50">
-            <tr class="border-b border-white/10"><td class="py-2">05/01</td><td>Frais scolaires</td><td class="text-right text-green-300">250 000</td><td class="text-right">—</td><td class="text-right font-bold">250 000</td></tr>
-            <tr class="border-b border-white/10"><td class="py-2">08/01</td><td>Achat craies</td><td class="text-right">—</td><td class="text-right text-red-300">35 000</td><td class="text-right font-bold">215 000</td></tr>
-            <tr class="border-b border-white/10"><td class="py-2">12/01</td><td>Frais scolaires</td><td class="text-right text-green-300">180 000</td><td class="text-right">—</td><td class="text-right font-bold">395 000</td></tr>
-            <tr><td class="py-2">15/01</td><td>Transport ciment</td><td class="text-right">—</td><td class="text-right text-red-300">50 000</td><td class="text-right font-bold">345 000</td></tr>
-          </tbody>
-        </table>
-        <div class="mt-4 flex justify-between items-center bg-white/10 rounded-xl px-4 py-3">
-          <p class="text-xs text-blue-200">Solde final</p>
-          <p class="font-extrabold text-amber-300">345 000 CDF</p>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm num min-w-[460px]">
+            <thead>
+              <tr class="text-left text-xs text-ink-soft bg-slate-50">
+                <th class="px-5 py-2.5 font-semibold">Date</th>
+                <th class="px-3 py-2.5 font-semibold">Libellé</th>
+                <th class="px-3 py-2.5 font-semibold text-right">Entrée</th>
+                <th class="px-3 py-2.5 font-semibold text-right">Sortie</th>
+                <th class="px-5 py-2.5 font-semibold text-right">Solde</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr><td class="px-5 py-3 text-ink-soft">05/01</td><td class="px-3 py-3">Frais scolaires</td><td class="px-3 py-3 text-right text-emerald-700 font-medium">250 000</td><td class="px-3 py-3 text-right text-slate-300">—</td><td class="px-5 py-3 text-right font-semibold">250 000</td></tr>
+              <tr><td class="px-5 py-3 text-ink-soft">08/01</td><td class="px-3 py-3">Achat de craies</td><td class="px-3 py-3 text-right text-slate-300">—</td><td class="px-3 py-3 text-right text-red-600 font-medium">35 000</td><td class="px-5 py-3 text-right font-semibold">215 000</td></tr>
+              <tr><td class="px-5 py-3 text-ink-soft">12/01</td><td class="px-3 py-3">Frais scolaires</td><td class="px-3 py-3 text-right text-emerald-700 font-medium">180 000</td><td class="px-3 py-3 text-right text-slate-300">—</td><td class="px-5 py-3 text-right font-semibold">395 000</td></tr>
+              <tr><td class="px-5 py-3 text-ink-soft">15/01</td><td class="px-3 py-3">Transport de ciment</td><td class="px-3 py-3 text-right text-slate-300">—</td><td class="px-3 py-3 text-right text-red-600 font-medium">50 000</td><td class="px-5 py-3 text-right font-semibold">345 000</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex items-center justify-between px-5 py-4 bg-brand text-white">
+          <p class="text-sm text-blue-100">Solde final</p>
+          <p class="text-xl font-extrabold num">345 000 CDF</p>
         </div>
       </div>
-      <div class="absolute -bottom-6 -left-6 glass rounded-xl px-5 py-3 shadow-xl animate-float" style="animation-delay: 1.2s">
-        <p class="text-xs text-blue-200"><i class="fas fa-print mr-1.5 text-amber-400"></i>Impression A4 en 1 clic</p>
+
+      <!-- Reçu flottant -->
+      <div class="hidden sm:flex absolute -bottom-8 -left-8 items-center gap-3 bg-white border border-slate-200 rounded-xl pl-3 pr-5 py-3 shadow-xl shadow-slate-900/10">
+        <span class="w-10 h-10 rounded-lg bg-accent-soft text-accent flex items-center justify-center"><i class="ph-fill ph-receipt text-xl"></i></span>
+        <div>
+          <p class="text-sm font-bold leading-tight">Reçu n° 0142</p>
+          <p class="text-xs text-ink-soft num">25 000 CDF · 1er trimestre</p>
+        </div>
+      </div>
+      <div class="hidden sm:flex absolute -top-6 -right-4 items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-xl shadow-slate-900/10">
+        <i class="ph-fill ph-printer text-xl text-brand"></i>
+        <p class="text-sm font-semibold">Impression A4 en un clic</p>
       </div>
     </div>
   </div>
 </section>
 
 <!-- ======================= FONCTIONNALITÉS ======================= -->
-<section id="fonctionnalites" class="py-20 lg:py-24">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div class="text-center max-w-2xl mx-auto mb-14">
-      <p class="text-sm font-bold text-blue-600 uppercase tracking-widest mb-2">Fonctionnalités</p>
-      <h2 class="text-3xl sm:text-4xl font-extrabold text-slate-900">Tout ce dont votre école a besoin</h2>
-      <p class="text-slate-500 mt-3">Une suite complète d'outils pensés pour les administrateurs, percepteurs et enseignants.</p>
+<section id="fonctionnalites" class="py-20 lg:py-28 bg-slate-50 border-y border-slate-200">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 grid lg:grid-cols-12 gap-12">
+    <div class="lg:col-span-4">
+      <div class="lg:sticky lg:top-28">
+        <h2 class="text-3xl sm:text-4xl font-extrabold leading-tight">Tout ce dont votre école a besoin pour ses comptes</h2>
+        <p class="mt-4 text-ink-soft leading-relaxed">Une suite d'outils pensée pour les administrateurs, les percepteurs et les enseignants, du premier paiement au rapport de fin de trimestre.</p>
+        <a href="#connexion" class="mt-7 inline-flex items-center gap-2 text-brand font-semibold hover:text-brand-dark">
+          Ouvrir mon espace <i class="ph-bold ph-arrow-right"></i>
+        </a>
+      </div>
     </div>
 
-    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-      <article class="feature-card bg-white rounded-2xl p-7 border border-slate-200 shadow-sm">
-        <div class="w-12 h-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-xl mb-5"><i class="fas fa-hand-holding-dollar"></i></div>
-        <h3 class="font-bold text-lg text-slate-900 mb-2">Perception des frais</h3>
-        <p class="text-sm text-slate-500 leading-relaxed">Enregistrez les paiements des élèves par trimestre avec génération automatique de reçus numérotés et imprimables.</p>
-      </article>
-      <article class="feature-card bg-white rounded-2xl p-7 border border-slate-200 shadow-sm">
-        <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl mb-5"><i class="fas fa-book"></i></div>
-        <h3 class="font-bold text-lg text-slate-900 mb-2">Livre de caisse imprimable</h3>
-        <p class="text-sm text-slate-500 leading-relaxed">Entrées, sorties et solde cumulé calculé automatiquement. Impression professionnelle au format A4 en un clic.</p>
-      </article>
-      <article class="feature-card bg-white rounded-2xl p-7 border border-slate-200 shadow-sm">
-        <div class="w-12 h-12 rounded-xl bg-green-100 text-green-600 flex items-center justify-center text-xl mb-5"><i class="fas fa-chart-pie"></i></div>
-        <h3 class="font-bold text-lg text-slate-900 mb-2">Prévision budgétaire</h3>
-        <p class="text-sm text-slate-500 leading-relaxed">Définissez vos prévisions par catégorie et suivez le taux de réalisation en temps réel, trimestre par trimestre.</p>
-      </article>
-      <article class="feature-card bg-white rounded-2xl p-7 border border-slate-200 shadow-sm">
-        <div class="w-12 h-12 rounded-xl bg-red-100 text-red-600 flex items-center justify-center text-xl mb-5"><i class="fas fa-triangle-exclamation"></i></div>
-        <h3 class="font-bold text-lg text-slate-900 mb-2">Suivi des dettes</h3>
-        <p class="text-sm text-slate-500 leading-relaxed">Identifiez instantanément les élèves en retard de paiement, classe par classe, avec le montant restant dû.</p>
-      </article>
-      <article class="feature-card bg-white rounded-2xl p-7 border border-slate-200 shadow-sm">
-        <div class="w-12 h-12 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-xl mb-5"><i class="fas fa-file-invoice"></i></div>
-        <h3 class="font-bold text-lg text-slate-900 mb-2">Rapports financiers</h3>
-        <p class="text-sm text-slate-500 leading-relaxed">Synthèses par trimestre : recettes, dépenses, taux de recouvrement. Des chiffres clairs pour décider vite.</p>
-      </article>
-      <article class="feature-card bg-white rounded-2xl p-7 border border-slate-200 shadow-sm">
-        <div class="w-12 h-12 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center text-xl mb-5"><i class="fas fa-users-gear"></i></div>
-        <h3 class="font-bold text-lg text-slate-900 mb-2">Multi-rôles sécurisé</h3>
-        <p class="text-sm text-slate-500 leading-relaxed">Super admin, administrateur, percepteur, enseignant : chacun accède uniquement à son espace dédié.</p>
-      </article>
+    <div class="lg:col-span-8">
+      <ul class="grid sm:grid-cols-2 gap-px bg-slate-200 border border-slate-200 rounded-2xl overflow-hidden">
+        <li class="bg-white p-7">
+          <span class="w-11 h-11 rounded-lg bg-brand-soft text-brand flex items-center justify-center text-2xl"><i class="ph ph-hand-coins"></i></span>
+          <h3 class="mt-5 font-bold text-lg">Perception des frais</h3>
+          <p class="mt-2 text-[15px] text-ink-soft leading-relaxed">Enregistrez les paiements des élèves par trimestre. Chaque reçu est numéroté automatiquement et prêt à imprimer.</p>
+        </li>
+        <li class="bg-white p-7">
+          <span class="w-11 h-11 rounded-lg bg-accent-soft text-accent flex items-center justify-center text-2xl"><i class="ph ph-notebook"></i></span>
+          <h3 class="mt-5 font-bold text-lg">Livre de caisse imprimable</h3>
+          <p class="mt-2 text-[15px] text-ink-soft leading-relaxed">Entrées, sorties et solde cumulé calculés pour vous. Impression au format A4 en un clic.</p>
+        </li>
+        <li class="bg-white p-7">
+          <span class="w-11 h-11 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center text-2xl"><i class="ph ph-chart-pie-slice"></i></span>
+          <h3 class="mt-5 font-bold text-lg">Prévision budgétaire</h3>
+          <p class="mt-2 text-[15px] text-ink-soft leading-relaxed">Fixez vos prévisions par catégorie et suivez le taux de réalisation, trimestre après trimestre.</p>
+        </li>
+        <li class="bg-white p-7">
+          <span class="w-11 h-11 rounded-lg bg-red-50 text-red-600 flex items-center justify-center text-2xl"><i class="ph ph-warning-circle"></i></span>
+          <h3 class="mt-5 font-bold text-lg">Suivi des dettes</h3>
+          <p class="mt-2 text-[15px] text-ink-soft leading-relaxed">Repérez tout de suite les élèves en retard de paiement, classe par classe, avec le montant qu'il leur reste à payer.</p>
+        </li>
+        <li class="bg-white p-7">
+          <span class="w-11 h-11 rounded-lg bg-violet-50 text-violet-700 flex items-center justify-center text-2xl"><i class="ph ph-file-text"></i></span>
+          <h3 class="mt-5 font-bold text-lg">Rapports financiers</h3>
+          <p class="mt-2 text-[15px] text-ink-soft leading-relaxed">Recettes, dépenses et taux de recouvrement par trimestre. Des chiffres clairs pour décider vite.</p>
+        </li>
+        <li class="bg-white p-7">
+          <span class="w-11 h-11 rounded-lg bg-slate-100 text-ink flex items-center justify-center text-2xl"><i class="ph ph-users-three"></i></span>
+          <h3 class="mt-5 font-bold text-lg">Accès par rôle</h3>
+          <p class="mt-2 text-[15px] text-ink-soft leading-relaxed">Super administrateur, administrateur, percepteur ou enseignant : chacun n'accède qu'à son propre espace.</p>
+        </li>
+      </ul>
     </div>
   </div>
 </section>
 
-<!-- ======================= LIVRE DE CAISSE (mise en avant) ======================= -->
-<section id="livre-caisse" class="py-20 bg-slate-900 text-white overflow-hidden">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-12 items-center">
-    <div>
-      <p class="text-sm font-bold text-amber-400 uppercase tracking-widest mb-2"><i class="fas fa-print mr-2"></i>Impression professionnelle</p>
+<!-- ======================= LIVRE DE CAISSE ======================= -->
+<section id="livre-caisse" class="py-20 lg:py-28 bg-brand text-white overflow-hidden">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 grid lg:grid-cols-12 gap-14 items-center">
+    <div class="lg:col-span-5">
       <h2 class="text-3xl sm:text-4xl font-extrabold leading-tight">Un livre de caisse clair, présentable et imprimable</h2>
-      <ul class="mt-8 space-y-4">
+      <p class="mt-4 text-blue-100 leading-relaxed">Le registre que vous remettez au chef d'établissement, sans rature et sans erreur de report.</p>
+
+      <ul class="mt-9 space-y-6">
         <li class="flex gap-4">
-          <span class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-table-columns text-sm"></i></span>
-          <div><p class="font-semibold">En-têtes ultra lisibles</p><p class="text-sm text-slate-400">DATE · CODE · LIBELLÉ · RÉFÉRENCE · ENTRÉE · SORTIE · SOLDE — présentation conforme aux registres officiels.</p></div>
+          <span class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center shrink-0 text-xl"><i class="ph ph-columns"></i></span>
+          <div><p class="font-semibold">En-têtes lisibles</p><p class="text-[15px] text-blue-100 mt-0.5">Date, code, libellé, entrée, sortie et solde, dans la présentation des registres officiels.</p></div>
         </li>
         <li class="flex gap-4">
-          <span class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-calculator text-sm"></i></span>
-          <div><p class="font-semibold">Solde cumulé automatique</p><p class="text-sm text-slate-400">Chaque ligne recalcule le solde. Zéro erreur de calcul, zéro rature.</p></div>
+          <span class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center shrink-0 text-xl"><i class="ph ph-calculator"></i></span>
+          <div><p class="font-semibold">Solde cumulé automatique</p><p class="text-[15px] text-blue-100 mt-0.5">Chaque ligne recalcule le solde. Plus d'erreur de calcul.</p></div>
         </li>
         <li class="flex gap-4">
-          <span class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-filter text-sm"></i></span>
-          <div><p class="font-semibold">Filtrage par période</p><p class="text-sm text-slate-400">Imprimez le mois, le trimestre ou l'année complète avec solde initial reporté.</p></div>
+          <span class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center shrink-0 text-xl"><i class="ph ph-funnel"></i></span>
+          <div><p class="font-semibold">Filtrage par période</p><p class="text-[15px] text-blue-100 mt-0.5">Imprimez le mois, le trimestre ou l'année, avec le solde initial reporté.</p></div>
         </li>
         <li class="flex gap-4">
-          <span class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 mt-0.5"><i class="fas fa-signature text-sm"></i></span>
-          <div><p class="font-semibold">Zones de signatures</p><p class="text-sm text-slate-400">Espace réservé pour le caissier et le chef d'établissement sur chaque édition.</p></div>
+          <span class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center shrink-0 text-xl"><i class="ph ph-signature"></i></span>
+          <div><p class="font-semibold">Zones de signature</p><p class="text-[15px] text-blue-100 mt-0.5">Un espace pour le caissier et pour le chef d'établissement sur chaque édition.</p></div>
         </li>
       </ul>
-      <a href="#connexion" class="mt-10 inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-7 py-3 rounded-xl transition">
-        <i class="fas fa-arrow-right"></i> Accéder au livre de caisse
+
+      <a href="#connexion" class="mt-10 inline-flex items-center gap-2 bg-accent hover:bg-accent-dark text-white font-semibold px-7 py-3.5 rounded-xl transition-colors">
+        Accéder au livre de caisse
       </a>
     </div>
-    <div class="bg-white rounded-2xl shadow-2xl p-6 text-slate-800 rotate-1 hover:rotate-0 transition-transform duration-500">
-      <div class="text-center border-b-2 border-slate-800 pb-3 mb-4">
-        <p class="font-extrabold uppercase">Livre de caisse</p>
-        <p class="text-xs text-slate-500">Année scolaire 2025-2026 · Édité le 18/08/2026</p>
+
+    <div class="lg:col-span-7">
+      <div class="paper bg-white rounded-md text-ink p-5 sm:p-8 max-w-2xl mx-auto lg:ml-auto">
+        <div class="text-center border-b-2 border-ink pb-3 mb-5">
+          <p class="font-extrabold text-lg tracking-tight">Livre de caisse</p>
+          <p class="text-xs text-ink-soft mt-0.5">Année scolaire 2026-2027</p>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="ledger w-full text-xs border-collapse num min-w-[440px]">
+            <thead>
+              <tr class="bg-ink text-white">
+                <th class="px-2 py-2 text-left font-semibold">Date</th>
+                <th class="px-2 py-2 font-semibold">Code</th>
+                <th class="px-2 py-2 text-left font-semibold">Libellé</th>
+                <th class="px-2 py-2 text-right font-semibold">Entrée</th>
+                <th class="px-2 py-2 text-right font-semibold">Sortie</th>
+                <th class="px-2 py-2 text-right font-semibold">Solde</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="bg-slate-100 font-semibold"><td class="px-2 py-1.5" colspan="5">Solde initial reporté</td><td class="px-2 py-1.5 text-right">120 000</td></tr>
+              <tr><td class="px-2 py-1.5">05/01</td><td class="px-2 py-1.5 text-center">R</td><td class="px-2 py-1.5">Frais scolaires du jour</td><td class="px-2 py-1.5 text-right text-emerald-700">250 000</td><td class="px-2 py-1.5 text-right text-slate-400">—</td><td class="px-2 py-1.5 text-right font-semibold">370 000</td></tr>
+              <tr class="bg-slate-50"><td class="px-2 py-1.5">08/01</td><td class="px-2 py-1.5 text-center">F</td><td class="px-2 py-1.5">Achat de fournitures</td><td class="px-2 py-1.5 text-right text-slate-400">—</td><td class="px-2 py-1.5 text-right text-red-700">35 000</td><td class="px-2 py-1.5 text-right font-semibold">335 000</td></tr>
+              <tr><td class="px-2 py-1.5">12/01</td><td class="px-2 py-1.5 text-center">B</td><td class="px-2 py-1.5">Transport de matériaux</td><td class="px-2 py-1.5 text-right text-slate-400">—</td><td class="px-2 py-1.5 text-right text-red-700">50 000</td><td class="px-2 py-1.5 text-right font-semibold">285 000</td></tr>
+              <tr class="bg-amber-50 font-bold"><td class="px-2 py-2 !border-2 !border-ink" colspan="3">Totaux</td><td class="px-2 py-2 text-right text-emerald-700 !border-2 !border-ink">250 000</td><td class="px-2 py-2 text-right text-red-700 !border-2 !border-ink">85 000</td><td class="px-2 py-2 text-right !border-2 !border-ink">285 000</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex justify-between gap-6 mt-8 text-[11px] text-ink-soft">
+          <div class="text-center"><p class="mb-9">Le caissier / percepteur</p><p class="border-t border-slate-400 pt-1 px-4 sm:px-8">Signature</p></div>
+          <div class="text-center"><p class="mb-9">Le chef d'établissement</p><p class="border-t border-slate-400 pt-1 px-4 sm:px-8">Signature et sceau</p></div>
+        </div>
       </div>
-      <table class="w-full text-[11px] sm:text-xs border-collapse">
-        <thead>
-          <tr class="bg-slate-800 text-white">
-            <th class="border border-slate-600 px-2 py-1.5 text-left">DATE</th>
-            <th class="border border-slate-600 px-2 py-1.5">CODE</th>
-            <th class="border border-slate-600 px-2 py-1.5 text-left">LIBELLÉ</th>
-            <th class="border border-slate-600 px-2 py-1.5 text-right">ENTRÉE</th>
-            <th class="border border-slate-600 px-2 py-1.5 text-right">SORTIE</th>
-            <th class="border border-slate-600 px-2 py-1.5 text-right">SOLDE</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr class="bg-slate-100 font-semibold"><td class="border border-slate-300 px-2 py-1" colspan="5">Solde initial reporté</td><td class="border border-slate-300 px-2 py-1 text-right">120 000</td></tr>
-          <tr><td class="border border-slate-300 px-2 py-1">05/01</td><td class="border border-slate-300 px-2 py-1 text-center">R</td><td class="border border-slate-300 px-2 py-1">Frais scolaire du jour</td><td class="border border-slate-300 px-2 py-1 text-right text-green-700">250 000</td><td class="border border-slate-300 px-2 py-1 text-right">—</td><td class="border border-slate-300 px-2 py-1 text-right font-semibold">370 000</td></tr>
-          <tr class="bg-slate-50"><td class="border border-slate-300 px-2 py-1">08/01</td><td class="border border-slate-300 px-2 py-1 text-center">F</td><td class="border border-slate-300 px-2 py-1">Achat fournitures</td><td class="border border-slate-300 px-2 py-1 text-right">—</td><td class="border border-slate-300 px-2 py-1 text-right text-red-700">35 000</td><td class="border border-slate-300 px-2 py-1 text-right font-semibold">335 000</td></tr>
-          <tr><td class="border border-slate-300 px-2 py-1">12/01</td><td class="border border-slate-300 px-2 py-1 text-center">B</td><td class="border border-slate-300 px-2 py-1">Transport matériaux</td><td class="border border-slate-300 px-2 py-1 text-right">—</td><td class="border border-slate-300 px-2 py-1 text-right text-red-700">50 000</td><td class="border border-slate-300 px-2 py-1 text-right font-semibold">285 000</td></tr>
-          <tr class="bg-amber-50 font-bold"><td class="border-2 border-slate-800 px-2 py-1.5" colspan="3">TOTAUX</td><td class="border-2 border-slate-800 px-2 py-1.5 text-right text-green-700">250 000</td><td class="border-2 border-slate-800 px-2 py-1.5 text-right text-red-700">85 000</td><td class="border-2 border-slate-800 px-2 py-1.5 text-right">285 000</td></tr>
-        </tbody>
-      </table>
-      <div class="flex justify-between mt-6 text-[10px] text-slate-500">
-        <div class="text-center"><p class="mb-6">Le Caissier / Percepteur</p><p class="border-t border-slate-400 pt-1 px-6">Signature</p></div>
-        <div class="text-center"><p class="mb-6">Le Chef d'Établissement</p><p class="border-t border-slate-400 pt-1 px-6">Signature & Sceau</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= RÔLES ======================= -->
+<section class="py-20 lg:py-24">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8">
+    <div class="max-w-2xl">
+      <h2 class="text-3xl sm:text-4xl font-extrabold leading-tight">Un espace adapté à chaque rôle</h2>
+      <p class="mt-4 text-ink-soft leading-relaxed">Chaque personne voit ce dont elle a besoin pour son travail, et rien de plus.</p>
+    </div>
+
+    <div class="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 border-t border-slate-200">
+      <div class="py-7 lg:pr-8 border-b lg:border-b-0 border-slate-200">
+        <i class="ph ph-shield-check text-3xl text-brand"></i>
+        <h3 class="mt-4 font-bold">Super administrateur</h3>
+        <p class="mt-1.5 text-[15px] text-ink-soft leading-relaxed">Initialise la plateforme et supervise l'ensemble.</p>
+      </div>
+      <div class="py-7 lg:px-8 lg:border-l border-b lg:border-b-0 border-slate-200">
+        <i class="ph ph-briefcase text-3xl text-brand"></i>
+        <h3 class="mt-4 font-bold">Administrateur</h3>
+        <p class="mt-1.5 text-[15px] text-ink-soft leading-relaxed">Pilote le budget, les rapports et le suivi des dettes.</p>
+      </div>
+      <div class="py-7 lg:px-8 lg:border-l border-b lg:border-b-0 border-slate-200">
+        <i class="ph ph-coins text-3xl text-accent"></i>
+        <h3 class="mt-4 font-bold">Percepteur</h3>
+        <p class="mt-1.5 text-[15px] text-ink-soft leading-relaxed">Encaisse les frais, remet les reçus et tient le livre de caisse.</p>
+      </div>
+      <div class="py-7 lg:pl-8 lg:border-l border-slate-200">
+        <i class="ph ph-chalkboard-teacher text-3xl text-brand"></i>
+        <h3 class="mt-4 font-bold">Enseignant</h3>
+        <p class="mt-1.5 text-[15px] text-ink-soft leading-relaxed">Accède à son espace dédié, sans voir les comptes de l'école.</p>
       </div>
     </div>
   </div>
 </section>
 
 <!-- ======================= CONNEXION ======================= -->
-<section id="connexion" class="py-20 lg:py-24 bg-gradient-to-b from-slate-50 to-blue-50">
-  <div class="max-w-md mx-auto px-4">
-    <div class="text-center mb-8">
-      <p class="text-sm font-bold text-blue-600 uppercase tracking-widest mb-2">Espace membre</p>
-      <h2 class="text-3xl font-extrabold text-slate-900">Connexion</h2>
-      <p class="text-slate-500 mt-2 text-sm">Accédez à votre espace de gestion</p>
+<section id="connexion" class="py-20 lg:py-28 bg-slate-50 border-t border-slate-200">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8 grid lg:grid-cols-12 gap-12 items-center">
+    <div class="lg:col-span-6">
+      <h2 class="text-3xl sm:text-4xl font-extrabold leading-tight">Accédez à votre espace de gestion</h2>
+      <p class="mt-4 text-ink-soft leading-relaxed max-w-md">Connectez-vous avec l'adresse email et le mot de passe fournis par l'administrateur de votre établissement.</p>
+      <ul class="mt-8 space-y-4 text-[15px]">
+        <li class="flex items-center gap-3"><i class="ph-fill ph-lock-key text-2xl text-brand"></i>Connexion sécurisée</li>
+        <li class="flex items-center gap-3"><i class="ph-fill ph-users-three text-2xl text-brand"></i>Accès limité à votre rôle</li>
+        <li class="flex items-center gap-3"><i class="ph-fill ph-clock-counter-clockwise text-2xl text-brand"></i>Chaque opération est enregistrée</li>
+      </ul>
     </div>
 
-    <div class="bg-white rounded-2xl shadow-2xl shadow-blue-900/10 p-8 border border-slate-100">
-      <form id="login-form" class="space-y-4">
-        <div>
-          <label for="login-email" class="text-sm font-medium text-slate-700">Adresse email</label>
-          <div class="relative mt-1">
-            <i class="fas fa-envelope absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
-            <input type="email" id="login-email" required class="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="vous@ecole.cd">
-          </div>
-        </div>
-        <div>
-          <label for="login-password" class="text-sm font-medium text-slate-700">Mot de passe</label>
-          <div class="relative mt-1">
-            <i class="fas fa-lock absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
-            <input type="password" id="login-password" required class="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="••••••••">
-          </div>
-        </div>
-        <button type="submit" id="login-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition text-sm shadow-lg shadow-blue-600/30">
-          <i class="fas fa-sign-in-alt mr-2"></i>Se connecter
-        </button>
-      </form>
+    <div class="lg:col-span-6 w-full max-w-md lg:max-w-none lg:justify-self-end">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-[0_24px_60px_-30px_rgba(11,74,174,.3)] p-7 sm:p-9 lg:max-w-md lg:ml-auto">
+        <h3 class="text-xl font-bold">Connexion</h3>
+        <p class="text-sm text-ink-soft mt-1">Entrez vos identifiants pour continuer.</p>
 
-      <div id="bootstrap-box" class="hidden mt-6 pt-6 border-t border-slate-200">
-        <p class="text-xs text-slate-500 mb-3"><i class="fas fa-circle-info mr-1 text-amber-500"></i>Aucun super administrateur n'existe encore. Créez le premier compte pour initialiser la plateforme :</p>
-        <form id="bootstrap-form" class="space-y-3">
-          <input type="text" id="boot-name" required placeholder="Nom complet" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-500">
-          <input type="email" id="boot-email" required placeholder="Email" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-500">
-          <input type="password" id="boot-password" required placeholder="Mot de passe" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-500">
-          <button type="submit" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2.5 rounded-lg transition text-sm">
-            <i class="fas fa-user-shield mr-2"></i>Créer le Super Administrateur
+        <form id="login-form" class="mt-6 space-y-5">
+          <div>
+            <label for="login-email" class="text-sm font-semibold text-ink">Adresse email</label>
+            <div class="relative mt-1.5">
+              <i class="ph ph-envelope-simple absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xl pointer-events-none"></i>
+              <input type="email" id="login-email" required autocomplete="email" class="w-full pl-11 pr-3 py-3 border border-slate-300 rounded-xl text-[15px] placeholder-slate-400 focus:border-brand focus:ring-4 focus:ring-brand/10 outline-none transition" placeholder="vous@ecole.cd">
+            </div>
+          </div>
+          <div>
+            <label for="login-password" class="text-sm font-semibold text-ink">Mot de passe</label>
+            <div class="relative mt-1.5">
+              <i class="ph ph-lock-simple absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xl pointer-events-none"></i>
+              <input type="password" id="login-password" required autocomplete="current-password" class="w-full pl-11 pr-12 py-3 border border-slate-300 rounded-xl text-[15px] placeholder-slate-400 focus:border-brand focus:ring-4 focus:ring-brand/10 outline-none transition" placeholder="••••••••">
+              <button type="button" id="toggle-password" class="absolute right-1.5 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-lg text-slate-500 hover:text-brand hover:bg-slate-100" aria-label="Afficher le mot de passe">
+                <i class="ph ph-eye text-xl" id="toggle-password-icon"></i>
+              </button>
+            </div>
+          </div>
+          <button type="submit" id="login-btn" class="w-full inline-flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-70 text-white font-semibold py-3.5 rounded-xl transition-colors text-[15px]">
+            <i class="ph-bold ph-sign-in text-lg"></i>Se connecter
           </button>
         </form>
+
+        <div id="bootstrap-box" class="hidden mt-7 pt-7 border-t border-slate-200">
+          <p class="flex gap-2.5 text-sm text-ink-soft mb-4 leading-relaxed">
+            <i class="ph-fill ph-info text-xl text-accent shrink-0"></i>
+            <span>Aucun super administrateur n'existe encore. Créez le premier compte pour initialiser la plateforme.</span>
+          </p>
+          <form id="bootstrap-form" class="space-y-3">
+            <input type="text" id="boot-name" required placeholder="Nom complet" class="w-full px-3.5 py-3 border border-slate-300 rounded-xl text-[15px] outline-none focus:border-accent focus:ring-4 focus:ring-accent/15">
+            <input type="email" id="boot-email" required placeholder="Email" class="w-full px-3.5 py-3 border border-slate-300 rounded-xl text-[15px] outline-none focus:border-accent focus:ring-4 focus:ring-accent/15">
+            <input type="password" id="boot-password" required placeholder="Mot de passe" class="w-full px-3.5 py-3 border border-slate-300 rounded-xl text-[15px] outline-none focus:border-accent focus:ring-4 focus:ring-accent/15">
+            <button type="submit" class="w-full inline-flex items-center justify-center gap-2 bg-accent hover:bg-accent-dark text-white font-semibold py-3 rounded-xl transition-colors text-[15px]">
+              <i class="ph-bold ph-user-gear text-lg"></i>Créer le super administrateur
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   </div>
 </section>
+</main>
 
 <!-- ======================= À PROPOS / FOOTER ======================= -->
-<footer id="apropos" class="hero-gradient text-white pt-16 pb-8">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div class="grid md:grid-cols-3 gap-10 pb-12 border-b border-white/10">
-      <div>
-        <div class="flex items-center gap-3 mb-4">
-          <span class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center"><i class="fas fa-school"></i></span>
-          <span class="font-bold text-lg">School<span class="text-amber-400">Finance</span></span>
-        </div>
-        <p class="text-sm text-blue-100/80 leading-relaxed">Plateforme de gestion financière scolaire conçue pour les établissements : transparence, rigueur et gain de temps au quotidien.</p>
+<footer id="apropos" class="bg-white border-t border-slate-200 pt-16 pb-8">
+  <div class="max-w-7xl mx-auto px-5 sm:px-8">
+    <div class="grid md:grid-cols-12 gap-10 pb-12">
+      <div class="md:col-span-5">
+        <img src="/public/static/img/logo-scolapay.png" alt="ScolaPay" class="h-8 w-auto" width="200" height="75">
+        <p class="mt-5 text-[15px] text-ink-soft leading-relaxed max-w-sm">Plateforme de gestion financière pour les établissements scolaires : transparence, rigueur et temps gagné au quotidien.</p>
       </div>
-      <div>
-        <h4 class="font-bold mb-4 text-amber-400">Navigation</h4>
-        <ul class="space-y-2 text-sm text-blue-100/80">
-          <li><a href="#accueil" class="hover:text-white transition"><i class="fas fa-angle-right mr-2 text-amber-400"></i>Accueil</a></li>
-          <li><a href="#fonctionnalites" class="hover:text-white transition"><i class="fas fa-angle-right mr-2 text-amber-400"></i>Fonctionnalités</a></li>
-          <li><a href="#livre-caisse" class="hover:text-white transition"><i class="fas fa-angle-right mr-2 text-amber-400"></i>Livre de caisse</a></li>
-          <li><a href="#connexion" class="hover:text-white transition"><i class="fas fa-angle-right mr-2 text-amber-400"></i>Connexion</a></li>
+      <div class="md:col-span-3 md:col-start-7">
+        <h4 class="font-bold mb-4">Navigation</h4>
+        <ul class="space-y-2.5 text-[15px] text-ink-soft">
+          <li><a href="#accueil" class="hover:text-brand transition-colors">Accueil</a></li>
+          <li><a href="#fonctionnalites" class="hover:text-brand transition-colors">Fonctionnalités</a></li>
+          <li><a href="#livre-caisse" class="hover:text-brand transition-colors">Livre de caisse</a></li>
+          <li><a href="#connexion" class="hover:text-brand transition-colors">Connexion</a></li>
         </ul>
       </div>
-      <div>
-        <h4 class="font-bold mb-4 text-amber-400">Modules</h4>
-        <ul class="space-y-2 text-sm text-blue-100/80">
-          <li><i class="fas fa-check mr-2 text-green-400"></i>Perception & reçus</li>
-          <li><i class="fas fa-check mr-2 text-green-400"></i>Livre de caisse imprimable</li>
-          <li><i class="fas fa-check mr-2 text-green-400"></i>Prévision budgétaire</li>
-          <li><i class="fas fa-check mr-2 text-green-400"></i>Rapports & recouvrement</li>
+      <div class="md:col-span-3">
+        <h4 class="font-bold mb-4">Modules</h4>
+        <ul class="space-y-2.5 text-[15px] text-ink-soft">
+          <li class="flex items-center gap-2"><i class="ph-fill ph-check-circle text-lg text-emerald-600"></i>Perception et reçus</li>
+          <li class="flex items-center gap-2"><i class="ph-fill ph-check-circle text-lg text-emerald-600"></i>Livre de caisse imprimable</li>
+          <li class="flex items-center gap-2"><i class="ph-fill ph-check-circle text-lg text-emerald-600"></i>Prévision budgétaire</li>
+          <li class="flex items-center gap-2"><i class="ph-fill ph-check-circle text-lg text-emerald-600"></i>Rapports et recouvrement</li>
         </ul>
       </div>
     </div>
-    <p class="text-center text-blue-100/60 text-xs pt-8">© 2026 SchoolFinance — Plateforme de Gestion Financière Scolaire. Tous droits réservés.</p>
+    <p class="pt-6 border-t border-slate-200 text-sm text-ink-soft">© 2026 ScolaPay. Tous droits réservés.</p>
   </div>
 </footer>
 
 <script src="/static/js/api.js?v=8"></script>
 <script>
+// ---- Navbar : ombre au défilement ----
+const navbar = document.getElementById('main-navbar')
+const onScroll = () => navbar.classList.toggle('shadow-sm', window.scrollY > 8)
+onScroll(); window.addEventListener('scroll', onScroll, { passive: true })
+
 // ---- Navbar mobile ----
 const navToggle = document.getElementById('nav-toggle')
 const navMobile = document.getElementById('nav-mobile')
 const navIcon = document.getElementById('nav-toggle-icon')
-navToggle.addEventListener('click', () => {
-  const open = !navMobile.classList.contains('hidden')
-  navMobile.classList.toggle('hidden')
-  navIcon.className = open ? 'fas fa-bars text-xl' : 'fas fa-times text-xl'
-})
-document.querySelectorAll('.nav-mobile-link').forEach(a => a.addEventListener('click', () => {
-  navMobile.classList.add('hidden')
-  navIcon.className = 'fas fa-bars text-xl'
-}))
-
-// ---- Compteurs animés ----
-function animateCounters() {
-  document.querySelectorAll('[data-counter]').forEach(el => {
-    const target = parseInt(el.dataset.counter, 10)
-    let current = 0
-    const step = Math.max(1, Math.ceil(target / 40))
-    const timer = setInterval(() => {
-      current = Math.min(target, current + step)
-      el.textContent = current
-      if (current >= target) clearInterval(timer)
-    }, 35)
-  })
+function setMenu(open) {
+  navMobile.classList.toggle('hidden', !open)
+  navIcon.className = open ? 'ph ph-x text-2xl' : 'ph ph-list text-2xl'
+  navToggle.setAttribute('aria-expanded', String(open))
 }
-animateCounters()
+navToggle.addEventListener('click', () => setMenu(navMobile.classList.contains('hidden')))
+document.querySelectorAll('.nav-mobile-link').forEach(a => a.addEventListener('click', () => setMenu(false)))
+
+// ---- Compteurs : s'animent une fois, quand le bloc devient visible ----
+const counters = document.querySelectorAll('[data-counter]')
+function runCounter(el) {
+  const target = parseInt(el.dataset.counter, 10)
+  let current = 0
+  const step = Math.max(1, Math.ceil(target / 40))
+  const timer = setInterval(() => {
+    current = Math.min(target, current + step)
+    el.textContent = current
+    if (current >= target) clearInterval(timer)
+  }, 35)
+}
+if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches && 'IntersectionObserver' in window) {
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(en => { if (en.isIntersecting) { const el = en.target; el.textContent = '0'; runCounter(el); io.unobserve(el) } })
+  }, { threshold: 0.6 })
+  counters.forEach(el => io.observe(el))
+}
+
+// ---- Afficher / masquer le mot de passe ----
+document.getElementById('toggle-password').addEventListener('click', () => {
+  const input = document.getElementById('login-password')
+  const show = input.type === 'password'
+  input.type = show ? 'text' : 'password'
+  document.getElementById('toggle-password-icon').className = show ? 'ph ph-eye-slash text-xl' : 'ph ph-eye text-xl'
+  document.getElementById('toggle-password').setAttribute('aria-label', show ? 'Masquer le mot de passe' : 'Afficher le mot de passe')
+})
 
 // ---- Bootstrap super admin ----
 async function checkBootstrap() {
@@ -372,11 +514,12 @@ checkBootstrap()
 Api.get('/api/auth/me').then(d => redirectByRole(d.user.role)).catch(() => {})
 
 // ---- Connexion ----
+const LOGIN_LABEL = '<i class="ph-bold ph-sign-in text-lg"></i>Se connecter'
 document.getElementById('login-form').addEventListener('submit', async (e) => {
   e.preventDefault()
   const btn = document.getElementById('login-btn')
   btn.disabled = true
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Connexion...'
+  btn.innerHTML = '<i class="ph-bold ph-spinner text-lg animate-spin"></i>Connexion...'
   try {
     const email = document.getElementById('login-email').value.trim()
     const password = document.getElementById('login-password').value
@@ -386,7 +529,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
   } catch (err) {
     toast(err.message, 'error')
     btn.disabled = false
-    btn.innerHTML = '<i class="fas fa-sign-in-alt mr-2"></i>Se connecter'
+    btn.innerHTML = LOGIN_LABEL
   }
 })
 
