@@ -257,6 +257,15 @@
           <button onclick="exportStudentsPdf()" class="btn btn-pdf"><i class="ph ph-file-pdf"></i>PDF</button>
         </div>
       </div>
+
+      <div class="section-card p-5 mb-4">
+          <label class="lbl"><i class="ph ph-magnifying-glass mr-1 text-brand align-middle text-base"></i>Recherche rapide d'un élève (toute l'école)</label>
+          <div class="student-search-wrap">
+            <input type="text" id="student-search-input" placeholder="Tapez le nom, post-nom ou matricule d'un élève…" class="field w-full" autocomplete="off">
+            <div id="student-search-results" class="student-search-results hidden"></div>
+          </div>
+      </div>
+
       <div class="section-card overflow-x-auto">
         <table class="data-table"><thead><tr><th>Nom</th><th>Post-nom</th><th>Prénom</th><th>Sexe</th><th>Catégorie</th><th>Actions</th></tr></thead><tbody id="students-tbody"></tbody></table>
       </div>
