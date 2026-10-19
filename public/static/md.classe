@@ -6,7 +6,7 @@
 <title>Espace Classe — ScolaPay</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
-<link href="/static/css/style.css?v=8" rel="stylesheet">
+<link href="/static/css/style.css?v=9" rel="stylesheet">
 </head>
 <body class="bg-slate-100">
 <div id="toast-container"></div>
@@ -123,8 +123,8 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-<script src="/static/js/api.js?v=8"></script>
-<script src="/static/js/export.js?v=8"></script>
-<script src="/static/js/classe.js?v=8"></script>
+<script src="/static/js/api.js?v=9"></script>
+<script src="/static/js/export.js?v=9"></script>
+<script src="/static/js/classe.js?v=9"></script>
 </body>
 </html>

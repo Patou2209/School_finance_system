@@ -262,7 +262,7 @@ function showDateRangePrintModal(opts) {
           <div><label class="text-xs font-medium text-slate-600">Au *</label>
             <input type="date" id="rg-to" value="${to}" required class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
         </div>
-        <p class="text-xs text-slate-400"><i class="fas fa-info-circle mr-1"></i>Tous les reçus de la période seront ouverts dans une page d'impression (8 reçus par page A4). Pour un seul jour, mettez la même date dans les deux champs.</p>
+        <p class="text-xs text-slate-400"><i class="fas fa-info-circle mr-1"></i>Tous les reçus de la période seront ouverts dans une page d'impression (6 reçus par page A4). Pour un seul jour, mettez la même date dans les deux champs.</p>
         <div class="flex justify-end gap-2 pt-2">
           <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100">Annuler</button>
           <button type="submit" class="px-4 py-2 text-sm rounded-lg bg-slate-700 hover:bg-slate-800 text-white font-semibold"><i class="fas fa-print mr-1"></i>Imprimer</button>

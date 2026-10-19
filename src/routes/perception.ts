@@ -305,17 +305,22 @@ perception.get('/my-classes-receipts', async (c) => {
 perception.get('/percepteur-receipts', async (c) => {
   const user = c.get('user')
   const db = c.env.DB
-  let percepteurId = c.req.query('percepteur_id')
+  // Un ou PLUSIEURS percepteurs : percepteur_id=2 OU percepteur_ids=2,5,7
+  let idsParam = c.req.query('percepteur_ids') || c.req.query('percepteur_id') || ''
   const dateFrom = c.req.query('date_from')
   const dateTo = c.req.query('date_to') || dateFrom
-  if (user.role === 'percepteur') percepteurId = String(user.uid)
-  if (!percepteurId || !dateFrom) return c.json({ error: 'percepteur_id et date_from requis' }, 400)
+  if (user.role === 'percepteur') idsParam = String(user.uid)
+  const ids = idsParam.split(',').map((s) => parseInt(s.trim(), 10)).filter((n) => Number.isInteger(n) && n > 0)
+  if (ids.length === 0 || !dateFrom) return c.json({ error: 'percepteur_id(s) et date_from requis' }, 400)
 
-  const percepteur = await db
-    .prepare(`SELECT id, name, email FROM users WHERE id = ? AND school_id = ? AND role IN ('percepteur','admin')`)
-    .bind(percepteurId, user.school_id)
-    .first<any>()
-  if (!percepteur) return c.json({ error: 'Percepteur introuvable' }, 404)
+  const placeholders = ids.map(() => '?').join(',')
+  const { results: percepteurs } = await db
+    .prepare(`SELECT id, name, email FROM users WHERE id IN (${placeholders}) AND school_id = ? AND role IN ('percepteur','admin') ORDER BY name`)
+    .bind(...ids, user.school_id)
+    .all<any>()
+  if (percepteurs.length === 0) return c.json({ error: 'Percepteur introuvable' }, 404)
+  const validIds = percepteurs.map((p: any) => p.id)
+  const validPlaceholders = validIds.map(() => '?').join(',')
 
   const school = await db.prepare(`SELECT * FROM schools WHERE id = ?`).bind(user.school_id).first<any>()
 
@@ -331,15 +336,23 @@ perception.get('/percepteur-receipts', async (c) => {
        JOIN trimesters t ON t.id = p.trimester_id
        JOIN school_years sy ON sy.id = t.school_year_id
        JOIN users u ON u.id = p.percepteur_id
-       WHERE p.percepteur_id = ? AND p.date_paiement >= ? AND p.date_paiement <= ? AND p.cancelled = 0 AND p.school_id = ?
-       ORDER BY p.date_paiement ASC, cl.name ASC, st.nom ASC, p.id ASC`
+       WHERE p.percepteur_id IN (${validPlaceholders}) AND p.date_paiement >= ? AND p.date_paiement <= ? AND p.cancelled = 0 AND p.school_id = ?
+       ORDER BY u.name ASC, p.date_paiement ASC, cl.name ASC, st.nom ASC, p.id ASC`
     )
-    .bind(percepteurId, dateFrom, dateTo, user.school_id)
+    .bind(...validIds, dateFrom, dateTo, user.school_id)
     .all<any>()
 
   const enriched = payments.map((p: any) => ({ ...p, balance: p.fee_amount - p.total_paid }))
 
-  return c.json({ school, percepteur, date_from: dateFrom, date_to: dateTo, payments: enriched, count: enriched.length })
+  return c.json({
+    school,
+    percepteur: percepteurs[0], // rétro-compatibilité (1 seul percepteur)
+    percepteurs,
+    date_from: dateFrom,
+    date_to: dateTo,
+    payments: enriched,
+    count: enriched.length
+  })
 })
 
 // GET /api/perception/student/:id/situation?trimester_id= - situation de paiement d'un élève

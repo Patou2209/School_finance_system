@@ -1108,21 +1108,60 @@ function printAllReceipts() {
   })
 }
 
-// Impression des reçus d'un PERCEPTEUR sur une période (onglet Rapport percepteur)
-function printPercepteurReceipts() {
-  const percepteurId = document.getElementById('rp-percepteur').value
-  if (!percepteurId) return toast('Choisissez d\'abord un percepteur', 'error')
-  const sel = document.getElementById('rp-percepteur')
-  const percepteurName = sel.options[sel.selectedIndex]?.text || ''
+// Impression des reçus d'UN OU PLUSIEURS percepteurs sur une période
+// (onglet Rapport percepteur) : cases à cocher + plage de dates
+async function printPercepteurReceipts() {
+  const { staff } = await Api.get('/api/admin/staff?role=percepteur_et_admin')
+  if (!staff || staff.length === 0) return toast('Aucun percepteur disponible', 'error')
+  const currentId = document.getElementById('rp-percepteur').value
   const date = document.getElementById('rp-date').value || todayStr()
-  showDateRangePrintModal({
-    title: 'Imprimer les reçus du percepteur',
-    subtitle: `${escapeHtml(percepteurName)} — choisissez la période`,
-    defaultFrom: date,
-    defaultTo: date,
-    onConfirm: (dateFrom, dateTo) => {
-      window.open(`/static/receipts-batch.html?percepteur_id=${percepteurId}&date_from=${dateFrom}&date_to=${dateTo}`, '_blank')
-    }
+
+  const checkboxes = staff.map(s => `
+    <label class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-50 cursor-pointer border border-slate-200">
+      <input type="checkbox" class="pp-check accent-blue-600" value="${s.id}" ${String(s.id) === String(currentId) ? 'checked' : ''}>
+      <span class="text-sm">${escapeHtml(s.name)}${s.role === 'admin' ? ' <span class="text-xs text-slate-400">(admin)</span>' : ''}</span>
+    </label>`).join('')
+
+  openModal(`
+    <div class="p-6">
+      <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fas fa-print mr-2 text-slate-700"></i>Imprimer les reçus des percepteurs</h3>
+      <p class="text-sm text-slate-500 mb-4">Cochez un ou plusieurs percepteurs, puis choisissez la période</p>
+      <form id="pp-print-form" class="space-y-3">
+        <div class="flex items-center justify-between">
+          <label class="text-xs font-medium text-slate-600">Percepteurs *</label>
+          <button type="button" id="pp-toggle-all" class="text-xs text-blue-600 hover:underline">Tout cocher / décocher</button>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">${checkboxes}</div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs font-medium text-slate-600">Du *</label>
+            <input type="date" id="pp-from" value="${date}" required class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+          <div><label class="text-xs font-medium text-slate-600">Au *</label>
+            <input type="date" id="pp-to" value="${date}" required class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+        </div>
+        <p class="text-xs text-slate-400"><i class="fas fa-info-circle mr-1"></i>Tous les reçus des percepteurs cochés sur la période seront regroupés dans une seule page d'impression (6 reçus par page A4).</p>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100">Annuler</button>
+          <button type="submit" class="px-4 py-2 text-sm rounded-lg bg-slate-700 hover:bg-slate-800 text-white font-semibold"><i class="fas fa-print mr-1"></i>Imprimer</button>
+        </div>
+      </form>
+    </div>`)
+
+  document.getElementById('pp-toggle-all').addEventListener('click', () => {
+    const boxes = [...document.querySelectorAll('.pp-check')]
+    const allChecked = boxes.every(b => b.checked)
+    boxes.forEach(b => { b.checked = !allChecked })
+  })
+
+  document.getElementById('pp-print-form').addEventListener('submit', (e) => {
+    e.preventDefault()
+    const ids = [...document.querySelectorAll('.pp-check:checked')].map(b => b.value)
+    if (ids.length === 0) return toast('Cochez au moins un percepteur', 'error')
+    const dateFrom = document.getElementById('pp-from').value
+    const dateTo = document.getElementById('pp-to').value
+    if (!dateFrom || !dateTo) return toast('Les deux dates sont requises', 'error')
+    if (dateFrom > dateTo) return toast('La date « Du » doit être antérieure ou égale à la date « Au »', 'error')
+    closeModal()
+    window.open(`/static/receipts-batch.html?percepteur_ids=${ids.join(',')}&date_from=${dateFrom}&date_to=${dateTo}`, '_blank')
   })
 }
 
