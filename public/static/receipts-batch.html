@@ -66,7 +66,7 @@
 
 <script src="/static/js/api.js?v=8"></script>
 <script>
-const RECEIPTS_PER_PAGE = 6
+const RECEIPTS_PER_PAGE = 8
 
 async function loadReceipts() {
   const params = new URLSearchParams(window.location.search)
@@ -154,7 +154,7 @@ function render(data) {
 
   const cells = payments.map(p => renderOneReceipt(school, p, p.fee_amount, p.total_paid, p.balance))
 
-  // Regroupe les reçus par page de 6 (grille 2 colonnes x 4 lignes, format A4 portrait)
+  // Regroupe les reçus par page de 8 (grille 2 colonnes x 4 lignes, format A4 portrait)
   let html = ''
   for (let i = 0; i < cells.length; i += RECEIPTS_PER_PAGE) {
     const pageCells = cells.slice(i, i + RECEIPTS_PER_PAGE)
