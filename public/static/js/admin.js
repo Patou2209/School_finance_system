@@ -78,11 +78,11 @@ async function refreshCoreData() {
 // ---------------------------------------------------------------------------
 async function loadDashboard() {
   const d = await Api.get('/api/admin/dashboard')
+  // TOUS les KPI sont masqués par défaut (confidentialité) — clic pour afficher/cacher
   const stats = [
-    { label: 'Classes', value: d.classes, icon: 'fa-chalkboard', color: 'text-blue-600' },
-    { label: 'Élèves', value: d.students, icon: 'fa-user-graduate', color: 'text-indigo-600' },
-    { label: 'Personnel', value: d.staff, icon: 'fa-users', color: 'text-purple-600' },
-    // Montants masqués par défaut (confidentialité) — clic pour afficher/cacher
+    { label: 'Classes', value: d.classes, icon: 'fa-chalkboard', color: 'text-blue-600', hidden: true },
+    { label: 'Élèves', value: d.students, icon: 'fa-user-graduate', color: 'text-indigo-600', hidden: true },
+    { label: 'Personnel', value: d.staff, icon: 'fa-users', color: 'text-purple-600', hidden: true },
     { label: "Perçu aujourd'hui", value: fmtMoney(d.today_collected, currentSchool?.currency), icon: 'fa-calendar-day', color: 'text-green-600', hidden: true },
     { label: 'Total perçu', value: fmtMoney(d.total_collected, currentSchool?.currency), icon: 'fa-coins', color: 'text-amber-600', hidden: true }
   ]

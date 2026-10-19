@@ -58,6 +58,11 @@ function setupTabs() {
         document.getElementById('debts-classes-view').classList.remove('hidden')
         loadDebtsClasses()
       }
+      if (link.dataset.tab === 'rapport') {
+        if (!document.getElementById('mr-date').value) document.getElementById('mr-date').value = todayStr()
+        loadMonRapport()
+        setAutoRefresh(loadMonRapport) // synchro quasi temps réel
+      }
     })
   })
 }
@@ -67,6 +72,10 @@ function populateSelectors() {
   document.getElementById('perc-summary-trimester').innerHTML = trimOptions
   document.getElementById('perc-trimester').innerHTML = trimOptions
   document.getElementById('debt-summary-trimester').innerHTML = trimOptions
+  // Filtre classe du rapport journalier : uniquement MES classes assignées
+  document.getElementById('mr-class').innerHTML =
+    '<option value="">Toutes mes classes</option>' +
+    myClasses.map(cl => `<option value="${cl.id}">${escapeHtml(cl.name)}</option>`).join('')
 }
 
 // ---------------------------------------------------------------------------
@@ -294,6 +303,118 @@ function printAllReceipts() {
     defaultTo: date,
     onConfirm: (dateFrom, dateTo) => {
       window.open(`/static/receipts-batch.html?class_id=${currentPerceptionClass.id}&date_from=${dateFrom}&date_to=${dateTo}`, '_blank')
+    }
+  })
+}
+
+// ---------------------------------------------------------------------------
+// MON RAPPORT JOURNALIER : les perceptions du percepteur connecté,
+// filtrables par date et par classe assignée
+// ---------------------------------------------------------------------------
+let monRapportCache = null
+
+async function loadMonRapport() {
+  const date = document.getElementById('mr-date').value || todayStr()
+  const classId = document.getElementById('mr-class').value
+  const data = await Api.get(`/api/perception/rapport-percepteur?date=${date}${classId ? `&class_id=${classId}` : ''}`)
+  monRapportCache = data
+  const cur = currentSchool?.currency
+
+  document.getElementById('mr-summary').innerHTML = `
+    <div class="stat-card"><p class="text-xs text-slate-500 mb-1">Date</p><p class="text-lg font-bold text-slate-800">${fmtDate(data.date)}</p></div>
+    <div class="stat-card"><p class="text-xs text-slate-500 mb-1">Paiements perçus</p><p class="text-xl font-bold text-slate-800">${data.count}</p></div>
+    <div class="stat-card"><p class="text-xs text-slate-500 mb-1">TOTAL PERÇU</p><p class="text-xl font-bold text-green-600">${fmtMoney(data.total, cur)}</p></div>
+  `
+
+  if (!data.classes.length) {
+    document.getElementById('mr-content').innerHTML = '<div class="section-card p-8 text-center text-slate-400">Aucune perception enregistrée à cette date</div>'
+    return
+  }
+
+  document.getElementById('mr-content').innerHTML = data.classes.map(cl => `
+    <div class="section-card mb-4 overflow-x-auto">
+      <div class="flex items-center justify-between mb-3 flex-wrap gap-2 p-4 pb-0">
+        <h3 class="font-bold text-slate-800"><i class="ph ph-chalkboard-simple mr-2 text-brand"></i>${escapeHtml(cl.class_name)}</h3>
+        <span class="badge badge-green">Total classe : ${fmtMoney(cl.total, cur)} — ${cl.count} paiement(s)</span>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>N°</th><th>Élève</th><th>Catégorie</th><th>Trimestre</th><th>Montant</th><th>Reçu</th><th></th></tr></thead>
+        <tbody>
+          ${cl.payments.map((p, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td class="font-medium">${escapeHtml(p.nom)} ${escapeHtml(p.post_nom)}</td>
+            <td>${typeof categoryBadge === 'function' ? categoryBadge(p.categorie) : escapeHtml(p.categorie || '')}</td>
+            <td>${escapeHtml(p.trimester_name)}</td>
+            <td class="font-semibold">${fmtMoney(p.montant, cur)}</td>
+            <td><span class="badge badge-green">${escapeHtml(p.receipt_number)}</span></td>
+            <td><button onclick="printReceipt(${p.id})" class="text-blue-600 hover:underline text-xs font-semibold" title="Imprimer le reçu"><i class="ph ph-printer"></i></button></td>
+          </tr>`).join('')}
+        </tbody>
+        <tfoot><tr><td colspan="4">TOTAL ${escapeHtml(cl.class_name)}</td><td colspan="3" class="text-green-700 font-bold">${fmtMoney(cl.total, cur)}</td></tr></tfoot>
+      </table>
+    </div>`).join('') + `
+    <div class="section-card p-4" style="background:#0F1B33;color:#fff">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <span class="font-bold"><i class="ph ph-coins mr-2" style="color:#fbbf24"></i>TOTAL GÉNÉRAL — ${fmtDate(data.date)}</span>
+        <span class="text-xl font-extrabold" style="color:#4ade80">${fmtMoney(data.total, cur)}</span>
+      </div>
+    </div>`
+}
+
+// Impression du rapport journalier (même mise en page que côté admin)
+function printMonRapport() {
+  if (!monRapportCache || !monRapportCache.classes.length) return toast('Affichez d\'abord un rapport avec des perceptions', 'error')
+  const d = monRapportCache
+  const cur = currentSchool?.currency
+  const catLabel = (c) => (typeof categoryLabel === 'function' ? categoryLabel(c) : (c || ''))
+  const win = window.open('', '_blank')
+  win.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Mon rapport journalier — ${escapeHtml(d.percepteur.name)} — ${d.date}</title>
+    <style>
+      body { font-family: 'Segoe UI', Arial, sans-serif; margin: 2rem; color: #1e293b; font-size: 13px; }
+      h1 { font-size: 18px; margin-bottom: 2px; } h2 { font-size: 14px; margin: 18px 0 6px; }
+      .sub { color: #64748b; font-size: 12px; margin-bottom: 14px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+      th, td { border: 1px solid #cbd5e1; padding: 5px 8px; text-align: left; }
+      th { background: #f1f5f9; font-size: 11px; text-transform: uppercase; }
+      .total-row td { font-weight: bold; background: #f8fafc; }
+      .grand-total { margin-top: 16px; padding: 12px; border: 2px solid #1e293b; font-weight: bold; font-size: 15px; display: flex; justify-content: space-between; }
+      .signs { margin-top: 38px; display: flex; justify-content: space-between; text-align: center; font-size: 12px; }
+      .signs div { width: 40%; } .signs .line { border-bottom: 1px solid #334155; height: 34px; margin-bottom: 4px; }
+      @media print { body { margin: 0.8cm; } }
+    </style></head><body>
+    <h1>${escapeHtml(currentSchool ? currentSchool.name : '')} — Rapport journalier de perception</h1>
+    <p class="sub">Percepteur : <b>${escapeHtml(d.percepteur.name)}</b> &nbsp;|&nbsp; Date : <b>${fmtDate(d.date)}</b> &nbsp;|&nbsp; ${d.count} paiement(s)</p>
+    ${d.classes.map(cl => `
+      <h2>Classe : ${escapeHtml(cl.class_name)}</h2>
+      <table>
+        <thead><tr><th>N°</th><th>Élève</th><th>Catégorie</th><th>Trimestre</th><th>Montant</th><th>Reçu</th></tr></thead>
+        <tbody>
+          ${cl.payments.map((p, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(p.nom)} ${escapeHtml(p.post_nom)}</td><td>${catLabel(p.categorie)}</td><td>${escapeHtml(p.trimester_name)}</td><td>${fmtMoney(p.montant, cur)}</td><td>${escapeHtml(p.receipt_number)}</td></tr>`).join('')}
+          <tr class="total-row"><td colspan="4">TOTAL ${escapeHtml(cl.class_name)}</td><td colspan="2">${fmtMoney(cl.total, cur)}</td></tr>
+        </tbody>
+      </table>`).join('')}
+    <div class="grand-total"><span>TOTAL GÉNÉRAL PERÇU</span><span>${fmtMoney(d.total, cur)}</span></div>
+    <div class="signs">
+      <div><div class="line"></div>Signature du percepteur</div>
+      <div><div class="line"></div>Visa de l'administration</div>
+    </div>
+    <script>window.onload = () => window.print()<\/script>
+    </body></html>`)
+  win.document.close()
+}
+
+// Impression de MES reçus sur une période (comme côté admin) :
+// le backend force percepteur_id = moi, donc pas besoin de le passer
+function printMesRecusPeriode() {
+  const date = document.getElementById('mr-date').value || todayStr()
+  showDateRangePrintModal({
+    title: 'Imprimer mes reçus',
+    subtitle: 'Tous les reçus que vous avez perçus — choisissez la période',
+    defaultFrom: date,
+    defaultTo: date,
+    onConfirm: (dateFrom, dateTo) => {
+      window.open(`/static/receipts-batch.html?percepteur_id=me&date_from=${dateFrom}&date_to=${dateTo}`, '_blank')
     }
   })
 }

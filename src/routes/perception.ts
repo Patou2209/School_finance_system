@@ -517,6 +517,7 @@ perception.get('/rapport-percepteur', async (c) => {
   const db = c.env.DB
   const date = c.req.query('date') || new Date().toISOString().slice(0, 10)
   let percepteurId = c.req.query('percepteur_id')
+  const classId = c.req.query('class_id') // filtre optionnel par classe
 
   // Un percepteur ne peut consulter que son propre rapport
   if (user.role === 'percepteur') percepteurId = String(user.uid)
@@ -537,10 +538,10 @@ perception.get('/rapport-percepteur', async (c) => {
        JOIN students st ON st.id = p.student_id
        JOIN classes cl ON cl.id = p.class_id
        JOIN trimesters t ON t.id = p.trimester_id
-       WHERE p.percepteur_id = ? AND p.date_paiement = ? AND p.cancelled = 0 AND p.school_id = ?
+       WHERE p.percepteur_id = ? AND p.date_paiement = ? AND p.cancelled = 0 AND p.school_id = ? ${classId ? 'AND p.class_id = ?' : ''}
        ORDER BY cl.name ASC, st.nom ASC, st.post_nom ASC, p.id ASC`
     )
-    .bind(percepteurId, date, user.school_id)
+    .bind(...(classId ? [percepteurId, date, user.school_id, classId] : [percepteurId, date, user.school_id]))
     .all<any>()
 
   // Groupement par classe avec total par classe
