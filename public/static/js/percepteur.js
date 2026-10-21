@@ -276,7 +276,7 @@ async function showPayModal(studentId, studentName, trimesterId) {
 }
 
 function printReceipt(paymentId) {
-  window.open(`/static/receipt.html?payment_id=${paymentId}`, '_blank')
+  window.open(`/static/receipts-batch.html?payment_id=${paymentId}`, '_blank')
 }
 
 // Impression des reçus de TOUTES les classes du percepteur sur une période

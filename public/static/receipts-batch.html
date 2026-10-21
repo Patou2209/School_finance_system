@@ -74,12 +74,25 @@ async function loadReceipts() {
   const classId = params.get('class_id')
   const percepteurId = params.get('percepteur_ids') || params.get('percepteur_id') // un ou plusieurs (ids séparés par des virgules)
   const allClasses = params.get('all_classes')
+  const paymentId = params.get('payment_id') // reçu unique : même rendu qu'une case du lot
   const date = params.get('date')
   const dateFrom = params.get('date_from') || date
   const dateTo = params.get('date_to') || date
   try {
     let data
-    if (allClasses) {
+    if (paymentId) {
+      // Mode reçu unique : un seul reçu, placé dans la 1re case (haut gauche) de la page A4
+      const r = await Api.get(`/api/perception/receipt/${paymentId}`)
+      data = {
+        school: r.school,
+        single: true,
+        class: { name: r.payment.class_name },
+        date_from: r.payment.date_paiement,
+        date_to: r.payment.date_paiement,
+        count: 1,
+        payments: [{ ...r.payment, fee_amount: r.fee_amount, total_paid: r.total_paid, balance: r.balance }]
+      }
+    } else if (allClasses) {
       // Mode toutes mes classes : tous les reçus des classes du percepteur connecté
       data = await Api.get(`/api/perception/my-classes-receipts?date_from=${dateFrom}&date_to=${dateTo}`)
     } else if (percepteurId) {
@@ -146,7 +159,8 @@ function renderOneReceipt(school, payment, fee_amount, total_paid, balance) {
 function render(data) {
   const { school, class: cls, percepteur, percepteurs, all_classes, classes_count, date_from, date_to, payments, count } = data
   const periode = date_from === date_to ? fmtDate(date_from) : `du ${fmtDate(date_from)} au ${fmtDate(date_to)}`
-  const who = all_classes ? `Toutes mes classes (${classes_count || 0})`
+  const who = data.single ? `Reçu N° ${payments[0].receipt_number} — ${payments[0].nom} ${payments[0].post_nom}`
+    : all_classes ? `Toutes mes classes (${classes_count || 0})`
     : (percepteurs && percepteurs.length > 1) ? `${percepteurs.length} percepteurs (${percepteurs.map(p => p.name).join(', ')})`
     : percepteur ? `Percepteur ${percepteur.name}` : `Classe ${cls.name}`
   document.getElementById('summary-line').textContent = `${who} — ${periode} — ${count} reçu(s)`

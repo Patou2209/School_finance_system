@@ -1416,7 +1416,7 @@ function printRapportPercepteur() {
 }
 
 function printReceipt(paymentId) {
-  window.open(`/static/receipt.html?payment_id=${paymentId}`, '_blank')
+  window.open(`/static/receipts-batch.html?payment_id=${paymentId}`, '_blank')
 }
 
 // ---------------------------------------------------------------------------
