@@ -203,6 +203,7 @@ perception.get('/registre', async (c) => {
 // GET /api/perception/class-receipts?class_id=&date= OU &date_from=&date_to=
 // Tous les reçus (paiements non annulés) d'une classe pour une date donnée OU
 // une plage de dates, pour l'impression groupée des reçus de la classe.
+// ORDRE : chronologique de génération (p.id croissant = ordre des numéros de reçu).
 perception.get('/class-receipts', async (c) => {
   const user = c.get('user')
   const db = c.env.DB
@@ -235,7 +236,7 @@ perception.get('/class-receipts', async (c) => {
        JOIN school_years sy ON sy.id = t.school_year_id
        JOIN users u ON u.id = p.percepteur_id
        WHERE p.class_id = ? AND p.date_paiement >= ? AND p.date_paiement <= ? AND p.cancelled = 0 AND p.school_id = ?
-       ORDER BY p.date_paiement ASC, st.nom ASC, st.post_nom ASC, p.id ASC`
+       ORDER BY p.id ASC`
     )
     .bind(classId, dateFrom, dateTo, user.school_id)
     .all<any>()
@@ -280,7 +281,7 @@ perception.get('/my-classes-receipts', async (c) => {
        JOIN school_years sy ON sy.id = t.school_year_id
        JOIN users u ON u.id = p.percepteur_id
        WHERE p.school_id = ? AND p.date_paiement >= ? AND p.date_paiement <= ? AND p.cancelled = 0 ${classFilterSql}
-       ORDER BY cl.name ASC, p.date_paiement ASC, st.nom ASC, p.id ASC`
+       ORDER BY p.id ASC`
     )
     .bind(user.school_id, dateFrom, dateTo, ...binds)
     .all<any>()
@@ -337,7 +338,7 @@ perception.get('/percepteur-receipts', async (c) => {
        JOIN school_years sy ON sy.id = t.school_year_id
        JOIN users u ON u.id = p.percepteur_id
        WHERE p.percepteur_id IN (${validPlaceholders}) AND p.date_paiement >= ? AND p.date_paiement <= ? AND p.cancelled = 0 AND p.school_id = ?
-       ORDER BY u.name ASC, p.date_paiement ASC, cl.name ASC, st.nom ASC, p.id ASC`
+       ORDER BY p.id ASC`
     )
     .bind(...validIds, dateFrom, dateTo, user.school_id)
     .all<any>()
