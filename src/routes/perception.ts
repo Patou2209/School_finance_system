@@ -510,13 +510,18 @@ perception.get('/search-students', async (c) => {
   return c.json({ students: results })
 })
 
-// GET /api/perception/rapport-percepteur?percepteur_id=&date= - RAPPORT JOURNALIER PAR PERCEPTEUR
-// Liste tous les paiements perçus par un percepteur à une date donnée, groupés
-// par classe, avec total perçu par classe et total général.
+// GET /api/perception/rapport-percepteur?percepteur_id=&date_from=&date_to= - RAPPORT PAR PERCEPTEUR
+// Liste tous les paiements perçus par un percepteur sur une date OU une période
+// (date_from → date_to inclus), groupés par classe, avec total perçu par classe
+// et total général. Compatibilité : l'ancien paramètre ?date= (un seul jour) reste accepté.
 perception.get('/rapport-percepteur', async (c) => {
   const user = c.get('user')
   const db = c.env.DB
-  const date = c.req.query('date') || new Date().toISOString().slice(0, 10)
+  const today = new Date().toISOString().slice(0, 10)
+  const legacyDate = c.req.query('date') // ancien paramètre : un seul jour
+  const dateFrom = c.req.query('date_from') || legacyDate || c.req.query('date_to') || today
+  const dateTo = c.req.query('date_to') || legacyDate || dateFrom
+  if (dateFrom > dateTo) return c.json({ error: 'La date de début doit être antérieure ou égale à la date de fin' }, 400)
   let percepteurId = c.req.query('percepteur_id')
   const classId = c.req.query('class_id') // filtre optionnel par classe
 
@@ -539,10 +544,10 @@ perception.get('/rapport-percepteur', async (c) => {
        JOIN students st ON st.id = p.student_id
        JOIN classes cl ON cl.id = p.class_id
        JOIN trimesters t ON t.id = p.trimester_id
-       WHERE p.percepteur_id = ? AND p.date_paiement = ? AND p.cancelled = 0 AND p.school_id = ? ${classId ? 'AND p.class_id = ?' : ''}
-       ORDER BY cl.name ASC, st.nom ASC, st.post_nom ASC, p.id ASC`
+       WHERE p.percepteur_id = ? AND p.date_paiement BETWEEN ? AND ? AND p.cancelled = 0 AND p.school_id = ? ${classId ? 'AND p.class_id = ?' : ''}
+       ORDER BY cl.name ASC, p.date_paiement ASC, st.nom ASC, st.post_nom ASC, p.id ASC`
     )
-    .bind(...(classId ? [percepteurId, date, user.school_id, classId] : [percepteurId, date, user.school_id]))
+    .bind(...(classId ? [percepteurId, dateFrom, dateTo, user.school_id, classId] : [percepteurId, dateFrom, dateTo, user.school_id]))
     .all<any>()
 
   // Groupement par classe avec total par classe
@@ -560,7 +565,9 @@ perception.get('/rapport-percepteur', async (c) => {
   }
 
   return c.json({
-    date,
+    date: dateFrom, // compatibilité (percepteur.js « Mon rapport »)
+    date_from: dateFrom,
+    date_to: dateTo,
     percepteur,
     classes: Array.from(byClass.values()),
     total: grandTotal,

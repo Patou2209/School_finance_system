@@ -1114,7 +1114,9 @@ async function printPercepteurReceipts() {
   const { staff } = await Api.get('/api/admin/staff?role=percepteur_et_admin')
   if (!staff || staff.length === 0) return toast('Aucun percepteur disponible', 'error')
   const currentId = document.getElementById('rp-percepteur').value
-  const date = document.getElementById('rp-date').value || todayStr()
+  // Reprend la période choisie dans le rapport (par défaut : aujourd'hui)
+  const dateFrom = document.getElementById('rp-date-from').value || todayStr()
+  const dateTo = document.getElementById('rp-date-to').value || dateFrom
 
   const checkboxes = staff.map(s => `
     <label class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-50 cursor-pointer border border-slate-200">
@@ -1134,9 +1136,9 @@ async function printPercepteurReceipts() {
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">${checkboxes}</div>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="text-xs font-medium text-slate-600">Du *</label>
-            <input type="date" id="pp-from" value="${date}" required class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+            <input type="date" id="pp-from" value="${dateFrom}" required class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
           <div><label class="text-xs font-medium text-slate-600">Au *</label>
-            <input type="date" id="pp-to" value="${date}" required class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
+            <input type="date" id="pp-to" value="${dateTo}" required class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></div>
         </div>
         <p class="text-xs text-slate-400"><i class="fas fa-info-circle mr-1"></i>Tous les reçus des percepteurs cochés sur la période seront regroupés dans une seule page d'impression (6 reçus par page A4).</p>
         <div class="flex justify-end gap-2 pt-2">
@@ -1269,26 +1271,42 @@ async function populateRapportPercepteurSelector() {
   document.getElementById('rp-percepteur').innerHTML =
     staff.map(s => `<option value="${s.id}">${escapeHtml(s.name)}${s.role === 'admin' ? ' (admin)' : ''}</option>`).join('') ||
     '<option value="">Aucun percepteur</option>'
-  if (!document.getElementById('rp-date').value) document.getElementById('rp-date').value = todayStr()
+  if (!document.getElementById('rp-date-from').value) document.getElementById('rp-date-from').value = todayStr()
+  if (!document.getElementById('rp-date-to').value) document.getElementById('rp-date-to').value = todayStr()
+}
+
+// Libellé de la période : "22/10/2026" (un seul jour) ou "du 01/10/2026 au 22/10/2026"
+function rpPeriodLabel(d) {
+  return d.date_from === d.date_to ? fmtDate(d.date_from) : `du ${fmtDate(d.date_from)} au ${fmtDate(d.date_to)}`
+}
+function rpFileSuffix(d) {
+  return d.date_from === d.date_to ? d.date_from : `${d.date_from}_au_${d.date_to}`
+}
+function rpReportTitle(d) {
+  return d.date_from === d.date_to ? 'Rapport journalier par percepteur' : 'Rapport par percepteur (période)'
 }
 
 async function loadRapportPercepteur() {
   const percepteurId = document.getElementById('rp-percepteur').value
-  const date = document.getElementById('rp-date').value || todayStr()
+  const dateFrom = document.getElementById('rp-date-from').value || todayStr()
+  const dateTo = document.getElementById('rp-date-to').value || dateFrom
   if (!percepteurId) return toast('Sélectionnez un percepteur', 'error')
+  if (dateFrom > dateTo) return toast('La date « Du » doit être antérieure ou égale à la date « Au »', 'error')
 
-  const data = await Api.get(`/api/perception/rapport-percepteur?percepteur_id=${percepteurId}&date=${date}`)
+  const data = await Api.get(`/api/perception/rapport-percepteur?percepteur_id=${percepteurId}&date_from=${dateFrom}&date_to=${dateTo}`)
   rapportPercepteurCache = data
   const cur = currentSchool?.currency
+  const multi = data.date_from !== data.date_to // période : on affiche la colonne Date
+  const periode = rpPeriodLabel(data)
 
   document.getElementById('rp-summary').innerHTML = `
     <div class="stat-card"><p class="text-xs text-slate-500 mb-1">Percepteur</p><p class="text-lg font-bold text-slate-800">${escapeHtml(data.percepteur.name)}</p></div>
-    <div class="stat-card"><p class="text-xs text-slate-500 mb-1">Paiements perçus — ${fmtDate(data.date)}</p><p class="text-xl font-bold text-slate-800">${data.count}</p></div>
+    <div class="stat-card"><p class="text-xs text-slate-500 mb-1">Paiements perçus — ${periode}</p><p class="text-xl font-bold text-slate-800">${data.count}</p></div>
     <div class="stat-card"><p class="text-xs text-slate-500 mb-1">TOTAL PERÇU</p><p class="text-xl font-bold text-green-600">${fmtMoney(data.total, cur)}</p></div>
   `
 
   if (!data.classes.length) {
-    document.getElementById('rp-content').innerHTML = '<div class="section-card text-center text-slate-400 py-10">Aucune perception enregistrée par ce percepteur à cette date</div>'
+    document.getElementById('rp-content').innerHTML = `<div class="section-card text-center text-slate-400 py-10">Aucune perception enregistrée par ce percepteur ${multi ? 'sur cette période' : 'à cette date'}</div>`
     return
   }
 
@@ -1299,11 +1317,12 @@ async function loadRapportPercepteur() {
         <span class="badge badge-green">Total classe : ${fmtMoney(cl.total, cur)} — ${cl.count} paiement(s)</span>
       </div>
       <table class="data-table">
-        <thead><tr><th>N°</th><th>Élève</th><th>Catégorie</th><th>Trimestre</th><th>Montant</th><th>Reçu</th><th>Actions</th></tr></thead>
+        <thead><tr><th>N°</th>${multi ? '<th>Date</th>' : ''}<th>Élève</th><th>Catégorie</th><th>Trimestre</th><th>Montant</th><th>Reçu</th><th>Actions</th></tr></thead>
         <tbody>
           ${cl.payments.map((p, i) => `
           <tr>
             <td>${i + 1}</td>
+            ${multi ? `<td class="whitespace-nowrap">${fmtDate(p.date_paiement)}</td>` : ''}
             <td class="font-medium">${escapeHtml(p.nom)} ${escapeHtml(p.post_nom)}</td>
             <td>${categoryBadge(p.categorie)}</td>
             <td>${escapeHtml(p.trimester_name)}</td>
@@ -1316,12 +1335,12 @@ async function loadRapportPercepteur() {
             </td>
           </tr>`).join('')}
         </tbody>
-        <tfoot><tr><td colspan="4">TOTAL ${escapeHtml(cl.class_name)}</td><td colspan="3" class="text-green-700">${fmtMoney(cl.total, cur)}</td></tr></tfoot>
+        <tfoot><tr><td colspan="${multi ? 5 : 4}">TOTAL ${escapeHtml(cl.class_name)}</td><td colspan="3" class="text-green-700">${fmtMoney(cl.total, cur)}</td></tr></tfoot>
       </table>
     </div>`).join('') + `
     <div class="section-card bg-slate-800 text-white">
       <div class="flex items-center justify-between flex-wrap gap-2">
-        <span class="font-bold"><i class="fas fa-coins mr-2 text-amber-400"></i>TOTAL GÉNÉRAL PERÇU PAR ${escapeHtml(data.percepteur.name).toUpperCase()} — ${fmtDate(data.date)}</span>
+        <span class="font-bold"><i class="fas fa-coins mr-2 text-amber-400"></i>TOTAL GÉNÉRAL PERÇU PAR ${escapeHtml(data.percepteur.name).toUpperCase()} — ${periode}</span>
         <span class="text-xl font-extrabold text-green-400">${fmtMoney(data.total, cur)}</span>
       </div>
     </div>`
@@ -1334,36 +1353,42 @@ function rapportPercepteurRows() {
     cl.payments.forEach((p, i) => rows.push({
       classe: cl.class_name,
       num: i + 1,
+      date: fmtDate(p.date_paiement),
       eleve: `${p.nom} ${p.post_nom}`,
       cat: categoryLabel(p.categorie),
       trimestre: p.trimester_name,
       montant: fmtMoney(p.montant, cur),
       recu: p.receipt_number
     }))
-    rows.push({ classe: cl.class_name, num: '', eleve: `TOTAL ${cl.class_name}`, cat: '', trimestre: '', montant: fmtMoney(cl.total, cur), recu: `${cl.count} paiement(s)` })
+    rows.push({ classe: cl.class_name, num: '', date: '', eleve: `TOTAL ${cl.class_name}`, cat: '', trimestre: '', montant: fmtMoney(cl.total, cur), recu: `${cl.count} paiement(s)` })
   }
-  rows.push({ classe: '', num: '', eleve: 'TOTAL GÉNÉRAL', cat: '', trimestre: '', montant: fmtMoney(rapportPercepteurCache.total, cur), recu: `${rapportPercepteurCache.count} paiement(s)` })
+  rows.push({ classe: '', num: '', date: '', eleve: 'TOTAL GÉNÉRAL', cat: '', trimestre: '', montant: fmtMoney(rapportPercepteurCache.total, cur), recu: `${rapportPercepteurCache.count} paiement(s)` })
   return rows
 }
 
-const RP_EXPORT_COLUMNS = [
-  { header: 'Classe', key: 'classe' },
-  { header: 'N°', key: 'num' },
-  { header: 'Élève', key: 'eleve' },
-  { header: 'Catégorie', key: 'cat' },
-  { header: 'Trimestre', key: 'trimestre' },
-  { header: 'Montant', key: 'montant' },
-  { header: 'Reçu', key: 'recu' }
-]
+// La colonne Date n'apparaît dans les exports que pour une période (plusieurs jours)
+function rpExportColumns(d) {
+  const multi = d.date_from !== d.date_to
+  return [
+    { header: 'Classe', key: 'classe' },
+    { header: 'N°', key: 'num' },
+    ...(multi ? [{ header: 'Date', key: 'date' }] : []),
+    { header: 'Élève', key: 'eleve' },
+    { header: 'Catégorie', key: 'cat' },
+    { header: 'Trimestre', key: 'trimestre' },
+    { header: 'Montant', key: 'montant' },
+    { header: 'Reçu', key: 'recu' }
+  ]
+}
 
 function exportRapportPercepteurExcel() {
   if (!rapportPercepteurCache) return toast('Affichez d\'abord un rapport', 'error')
   const d = rapportPercepteurCache
   exportTableToExcel({
-    filename: `rapport_percepteur_${d.percepteur.name.replace(/\s+/g, '_')}_${d.date}`,
+    filename: `rapport_percepteur_${d.percepteur.name.replace(/\s+/g, '_')}_${rpFileSuffix(d)}`,
     sheetName: 'Rapport percepteur',
-    title: `Rapport journalier — ${d.percepteur.name} — ${fmtDate(d.date)} — Total perçu : ${fmtMoney(d.total, currentSchool?.currency)}`,
-    columns: RP_EXPORT_COLUMNS,
+    title: `${rpReportTitle(d)} — ${d.percepteur.name} — ${rpPeriodLabel(d)} — Total perçu : ${fmtMoney(d.total, currentSchool?.currency)}`,
+    columns: rpExportColumns(d),
     rows: rapportPercepteurRows()
   })
 }
@@ -1372,10 +1397,10 @@ function exportRapportPercepteurPdf() {
   if (!rapportPercepteurCache) return toast('Affichez d\'abord un rapport', 'error')
   const d = rapportPercepteurCache
   exportTableToPdf({
-    filename: `rapport_percepteur_${d.percepteur.name.replace(/\s+/g, '_')}_${d.date}`,
-    title: `Rapport journalier par percepteur — ${d.percepteur.name}`,
-    subtitle: `${currentSchool ? currentSchool.name : ''} — ${fmtDate(d.date)} — TOTAL PERÇU : ${fmtMoney(d.total, currentSchool?.currency)}`,
-    columns: RP_EXPORT_COLUMNS,
+    filename: `rapport_percepteur_${d.percepteur.name.replace(/\s+/g, '_')}_${rpFileSuffix(d)}`,
+    title: `${rpReportTitle(d)} — ${d.percepteur.name}`,
+    subtitle: `${currentSchool ? currentSchool.name : ''} — ${rpPeriodLabel(d)} — TOTAL PERÇU : ${fmtMoney(d.total, currentSchool?.currency)}`,
+    columns: rpExportColumns(d),
     rows: rapportPercepteurRows()
   })
 }
@@ -1384,8 +1409,9 @@ function printRapportPercepteur() {
   if (!rapportPercepteurCache) return toast('Affichez d\'abord un rapport', 'error')
   const d = rapportPercepteurCache
   const cur = currentSchool?.currency
+  const multi = d.date_from !== d.date_to
   const win = window.open('', '_blank')
-  win.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Rapport percepteur — ${escapeHtml(d.percepteur.name)} — ${d.date}</title>
+  win.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Rapport percepteur — ${escapeHtml(d.percepteur.name)} — ${rpFileSuffix(d)}</title>
     <style>
       body { font-family: 'Segoe UI', Arial, sans-serif; margin: 2rem; color: #1e293b; font-size: 13px; }
       h1 { font-size: 18px; margin-bottom: 2px; } h2 { font-size: 14px; margin: 18px 0 6px; }
@@ -1397,15 +1423,15 @@ function printRapportPercepteur() {
       .grand-total { margin-top: 16px; padding: 12px; border: 2px solid #1e293b; font-weight: bold; font-size: 15px; display: flex; justify-content: space-between; }
       @media print { body { margin: 0.8cm; } }
     </style></head><body>
-    <h1>${escapeHtml(currentSchool ? currentSchool.name : '')} — Rapport journalier par percepteur</h1>
-    <p class="sub">Percepteur : <b>${escapeHtml(d.percepteur.name)}</b> &nbsp;|&nbsp; Date : <b>${fmtDate(d.date)}</b> &nbsp;|&nbsp; ${d.count} paiement(s)</p>
+    <h1>${escapeHtml(currentSchool ? currentSchool.name : '')} — ${rpReportTitle(d)}</h1>
+    <p class="sub">Percepteur : <b>${escapeHtml(d.percepteur.name)}</b> &nbsp;|&nbsp; ${multi ? 'Période' : 'Date'} : <b>${rpPeriodLabel(d)}</b> &nbsp;|&nbsp; ${d.count} paiement(s)</p>
     ${d.classes.map(cl => `
       <h2>Classe : ${escapeHtml(cl.class_name)}</h2>
       <table>
-        <thead><tr><th>N°</th><th>Élève</th><th>Catégorie</th><th>Trimestre</th><th>Montant</th><th>Reçu</th></tr></thead>
+        <thead><tr><th>N°</th>${multi ? '<th>Date</th>' : ''}<th>Élève</th><th>Catégorie</th><th>Trimestre</th><th>Montant</th><th>Reçu</th></tr></thead>
         <tbody>
-          ${cl.payments.map((p, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(p.nom)} ${escapeHtml(p.post_nom)}</td><td>${categoryLabel(p.categorie)}</td><td>${escapeHtml(p.trimester_name)}</td><td>${fmtMoney(p.montant, cur)}</td><td>${escapeHtml(p.receipt_number)}</td></tr>`).join('')}
-          <tr class="total-row"><td colspan="4">TOTAL ${escapeHtml(cl.class_name)}</td><td colspan="2">${fmtMoney(cl.total, cur)}</td></tr>
+          ${cl.payments.map((p, i) => `<tr><td>${i + 1}</td>${multi ? `<td>${fmtDate(p.date_paiement)}</td>` : ''}<td>${escapeHtml(p.nom)} ${escapeHtml(p.post_nom)}</td><td>${categoryLabel(p.categorie)}</td><td>${escapeHtml(p.trimester_name)}</td><td>${fmtMoney(p.montant, cur)}</td><td>${escapeHtml(p.receipt_number)}</td></tr>`).join('')}
+          <tr class="total-row"><td colspan="${multi ? 5 : 4}">TOTAL ${escapeHtml(cl.class_name)}</td><td colspan="2">${fmtMoney(cl.total, cur)}</td></tr>
         </tbody>
       </table>`).join('')}
     <div class="grand-total"><span>TOTAL GÉNÉRAL PERÇU</span><span>${fmtMoney(d.total, cur)}</span></div>

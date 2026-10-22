@@ -358,7 +358,7 @@
     <!-- RAPPORT JOURNALIER PAR PERCEPTEUR -->
     <section id="tab-rapport-percepteur" class="hidden">
       <div class="page-head section-header-flex">
-        <div><h1 class="page-title">Rapport journalier par percepteur</h1><p class="page-sub">Total perçu par un percepteur à une date donnée, détaillé par classe</p></div>
+        <div><h1 class="page-title">Rapport par percepteur</h1><p class="page-sub">Total perçu par un percepteur sur une date ou une période, détaillé par classe</p></div>
         <div class="toolbar">
           <button onclick="printPercepteurReceipts()" class="btn btn-primary"><i class="ph ph-receipt"></i>Imprimer les reçus (période)</button>
           <button onclick="printRapportPercepteur()" class="btn btn-dark"><i class="ph ph-printer"></i>Imprimer</button>
@@ -369,7 +369,8 @@
       <div class="section-card p-5 mb-6">
         <div class="filters">
           <div><label class="lbl">Percepteur</label><select id="rp-percepteur" class="field" style="min-width:14rem"></select></div>
-          <div><label class="lbl">Date</label><input type="date" id="rp-date" class="field"></div>
+          <div><label class="lbl">Du</label><input type="date" id="rp-date-from" class="field"></div>
+          <div><label class="lbl">Au</label><input type="date" id="rp-date-to" class="field"></div>
           <button onclick="loadRapportPercepteur()" class="btn btn-primary"><i class="ph-bold ph-magnifying-glass"></i>Afficher</button>
         </div>
       </div>
